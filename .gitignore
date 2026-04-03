@@ -1,0 +1,30 @@
+node_modules/
+dist/
+*.js.map
+*.d.ts
+*.d.ts.map
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Cloned repos for autofix
+repos/
+
+# Logs
+*.log
+logs/
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local

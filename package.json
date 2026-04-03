@@ -1,0 +1,45 @@
+{
+  "name": "pr-auto-reviewer",
+  "version": "0.1.0",
+  "description": "Automated GitHub PR reviewer with Claude Code AI and terminal UI",
+  "type": "module",
+  "bin": {
+    "pr-auto-reviewer": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup && chmod +x dist/index.js",
+    "dev": "tsup --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "better-sqlite3": "^11.0.0",
+    "commander": "^12.0.0",
+    "ink": "^5.0.1",
+    "ink-text-input": "^6.0.0",
+    "node-notifier": "^10.0.1",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0",
+    "react": "^18.3.1",
+    "yaml": "^2.4.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^20.0.0",
+    "@types/node-notifier": "^8.0.5",
+    "@types/react": "^18.3.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "esbuild": ">=0.25.0"
+  }
+}
