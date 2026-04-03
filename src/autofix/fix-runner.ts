@@ -7,6 +7,59 @@ export interface FixRunnerResult {
   costUsd?: number;
 }
 
+export async function runClaudeCIFix(
+  repoDir: string,
+  jobName: string,
+  opts: { model?: string; maxBudgetUsd?: number; resumeSessionId?: string } = {},
+): Promise<FixRunnerResult> {
+  const { model = 'sonnet', maxBudgetUsd = 1.0, resumeSessionId } = opts;
+
+  const prompt = `You are fixing a CI/CD failure in a GitHub Pull Request.
+
+The failing CI job is: **${jobName}**
+
+Based on the job name, understand what it checks (tests, linting, type-checking, build, etc.).
+Explore the codebase, find what is causing this job to fail, and apply the minimal fix.
+
+Rules:
+- Only change what is necessary to fix the failing job
+- Do not refactor or change unrelated code
+- Use Read to understand the code, Edit to fix it, Bash to run checks if needed
+- After fixing, briefly summarise what you changed and why`;
+
+  const args = [
+    '--print',
+    '--output-format', 'json',
+    '--dangerously-skip-permissions',
+    '--tools', 'Bash,Edit,Read',
+    '--model', model,
+    '--max-budget-usd', String(maxBudgetUsd),
+    '--add-dir', repoDir,
+  ];
+
+  if (resumeSessionId) {
+    args.push('--resume', resumeSessionId, '--fork-session');
+  }
+
+  args.push(prompt);
+
+  logger.info({ repoDir, jobName, resumeSessionId }, 'Running Claude CI fix');
+
+  const result = await run('claude', args, { cwd: repoDir, timeout: 600_000 } as Parameters<typeof run>[2]);
+
+  if (result.exitCode !== 0) {
+    throw new Error(`claude CI fix exited ${result.exitCode}: ${result.stderr.slice(0, 300)}`);
+  }
+
+  let costUsd: number | undefined;
+  try {
+    const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
+    if (typeof parsed.total_cost_usd === 'number') costUsd = parsed.total_cost_usd;
+  } catch { /* non-critical */ }
+
+  return { changed: true, costUsd };
+}
+
 export async function runClaudeFix(
   repoDir: string,
   review: Review,

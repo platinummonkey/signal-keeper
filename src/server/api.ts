@@ -7,7 +7,7 @@ import { actionMerge, actionComment, actionClose } from '../github/pr-actions.js
 import { reviewPR, generateCommentFromReview } from '../review/engine.js';
 import { fetchPRDiff, fetchPRFiles, getCIStatus, getWorkflowRunsForCommit, getWorkflowRunJobs } from '../github/client.js';
 import { approvePendingWorkflows } from '../daemon.js';
-import { runAutofix } from '../autofix/index.js';
+import { runAutofix, runCIJobFix } from '../autofix/index.js';
 import { logger } from '../utils/logger.js';
 import type { ConfigOutput } from '../config/schema.js';
 
@@ -144,6 +144,20 @@ export function createApiRouter(config: ConfigOutput): Router {
       const result = await generateCommentFromReview(pr.id, instruction, config);
       await actionComment(pr.id, pr.owner, pr.repo, pr.number, result.body);
       res.json({ ok: true, body: result.body });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // Fix a specific failing CI job
+  router.post('/prs/:id/fix-ci-job', async (req: Request, res: Response) => {
+    try {
+      const pr = requirePR(req, res); if (!pr) return;
+      const jobName: string = req.body?.jobName;
+      if (!jobName?.trim()) return res.status(400).json({ error: 'jobName is required' });
+      runCIJobFix(pr.id, jobName, config)
+        .catch((err) => logger.error({ err, prId: pr.id, jobName }, 'CI job fix failed'));
+      res.json({ ok: true, message: `CI fix started for job: ${jobName}` });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }

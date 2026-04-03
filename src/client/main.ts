@@ -198,6 +198,7 @@ function selectTab(pr: PR, tab: typeof activeTab): void {
     case 'ci':
       if (lastCIData) {
         tc.innerHTML = ciRunsHTML(pr, lastCIData.status, lastCIData.runs);
+        bindCIFixButtons(pr);
       } else {
         tc.innerHTML = '<div class="tab-empty">Loading CI…</div>';
         if (!ciLoaded) void loadCI(pr);
@@ -267,10 +268,15 @@ function ciRunsHTML(pr: PR, status: string, runs: import('./types.ts').WorkflowR
       const jIcon  = j.conclusion ? (CONCLUSION_ICON[j.conclusion] ?? '?') : (CI_ICON[j.status ?? ''] ?? '⟳');
       const jStyle = j.conclusion ? (CONCLUSION_STYLE[j.conclusion] ?? '') : 'color:var(--yellow)';
       const jLabel = j.conclusion ?? j.status ?? 'unknown';
+      const isFailed = j.conclusion === 'failure' || j.conclusion === 'timed_out';
+      const fixBtn = isFailed
+        ? `<button class="ci-fix-btn" data-job-name="${esc(j.name)}">Fix</button>`
+        : '';
       return `<div class="ci-job">
         <span class="ci-job-icon" style="${jStyle}">${jIcon}</span>
         <span class="ci-job-name">${esc(j.name)}</span>
         <span class="ci-job-status" style="${jStyle}">${esc(jLabel)}</span>
+        ${fixBtn}
       </div>`;
     }).join('');
 
@@ -313,6 +319,7 @@ async function loadCI(pr: PR): Promise<void> {
     // Update tab content if CI tab is active
     if (activeTab === 'ci') {
       $('tab-content').innerHTML = ciRunsHTML(pr, status, runs);
+      bindCIFixButtons(pr);
     }
 
     // Auto-poll while pending; stop when done
@@ -328,6 +335,26 @@ async function loadCI(pr: PR): Promise<void> {
       $('tab-content').innerHTML = `<div class="tab-empty" style="color:var(--red)">Failed: ${esc((e as Error).message)}</div>`;
     }
   }
+}
+
+function bindCIFixButtons(pr: PR): void {
+  $('tab-content').querySelectorAll<HTMLButtonElement>('.ci-fix-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const jobName = btn.dataset.jobName!;
+      const orig = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        await api.fixCIJob(pr.id, jobName);
+        toast(`CI fix started for "${jobName}" — follow-up PR will be created`, 'info');
+      } catch (e) {
+        toast(`CI fix failed: ${(e as Error).message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+      }
+    });
+  });
 }
 
 // ── Diff ──────────────────────────────────────────────────────────
