@@ -32,7 +32,7 @@ export const configSchema = z.object({
   maxConcurrentReviews: z.number().int().positive().default(3),
   maxReviewCostUsd: z.number().positive().default(0.5),
   reviewModel: z.string().default('sonnet'),
-  workDir: z.string().default('~/.pr-auto-reviewer/repos'),
+  workDir: z.string().default('~/.signal-keeper/repos'),
   trustedOrgs: z.array(z.string()).default([]),
   port: z.number().int().min(1024).max(65535).default(7777),
 });

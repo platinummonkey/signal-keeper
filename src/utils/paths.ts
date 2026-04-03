@@ -1,7 +1,7 @@
 import { homedir } from 'os';
 import { join } from 'path';
 
-const BASE_DIR = join(homedir(), '.pr-auto-reviewer');
+const BASE_DIR = join(homedir(), '.signal-keeper');
 
 export const paths = {
   baseDir: BASE_DIR,

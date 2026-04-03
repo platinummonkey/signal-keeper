@@ -23,7 +23,7 @@ describe('configSchema', () => {
     expect(result.data.github.tokenCommand).toBe('gh auth token');
     expect(result.data.notifications.enabled).toBe(true);
     expect(result.data.notifications.categories).toContain('needs-changes');
-    expect(result.data.workDir).toBe('~/.pr-auto-reviewer/repos');
+    expect(result.data.workDir).toBe('~/.signal-keeper/repos');
   });
 
   it('accepts trustedOrgs', () => {

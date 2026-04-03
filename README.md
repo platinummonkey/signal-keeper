@@ -1,4 +1,4 @@
-# pr-auto-reviewer
+# signal-keeper
 
 AI-powered GitHub PR reviewer with a terminal UI. Monitors PRs across configured orgs and repos, runs code reviews via Claude Code, and lets you act on results (merge, comment, close, autofix) from a keyboard-driven TUI.
 
@@ -20,11 +20,11 @@ config.yaml → Daemon (polls GitHub) → Claude Code subprocess (reviews PR)
 ## Install
 
 ```bash
-git clone https://github.com/platinummonkey/pr-auto-reviewer
-cd pr-auto-reviewer
+git clone https://github.com/platinummonkey/signal-keeper
+cd signal-keeper
 npm install
 npm run build
-npm link          # makes `pr-auto-reviewer` available in PATH
+npm link          # makes `signal-keeper` available in PATH
 ```
 
 Requires:
@@ -34,7 +34,7 @@ Requires:
 
 ## Configuration
 
-On first run, a template is written to `~/.pr-auto-reviewer/config.yaml`:
+On first run, a template is written to `~/.signal-keeper/config.yaml`:
 
 ```yaml
 github:
@@ -63,7 +63,7 @@ notifications:
 maxConcurrentReviews: 3           # parallel Claude subprocesses
 maxReviewCostUsd: 0.50            # per-review budget cap
 reviewModel: sonnet               # claude model to use
-workDir: ~/.pr-auto-reviewer/repos  # clone location for autofix
+workDir: ~/.signal-keeper/repos  # clone location for autofix
 ```
 
 ## Usage
@@ -71,22 +71,22 @@ workDir: ~/.pr-auto-reviewer/repos  # clone location for autofix
 **Start the daemon** (polls GitHub + runs AI reviews in the background):
 
 ```bash
-pr-auto-reviewer start
-pr-auto-reviewer start --pretty          # pretty-print logs to stdout
-pr-auto-reviewer start --log-level debug
-pr-auto-reviewer start -c /path/to/config.yaml
+signal-keeper start
+signal-keeper start --pretty          # pretty-print logs to stdout
+signal-keeper start --log-level debug
+signal-keeper start -c /path/to/config.yaml
 ```
 
 **Open the TUI** (reads the same DB the daemon writes to):
 
 ```bash
-pr-auto-reviewer tui
+signal-keeper tui
 ```
 
 **Review a specific PR** (one-shot, prints JSON):
 
 ```bash
-pr-auto-reviewer review https://github.com/owner/repo/pull/123
+signal-keeper review https://github.com/owner/repo/pull/123
 ```
 
 ## TUI keyboard shortcuts
@@ -120,7 +120,7 @@ pr-auto-reviewer review https://github.com/owner/repo/pull/123
 
 ## Data location
 
-All data is stored under `~/.pr-auto-reviewer/`:
+All data is stored under `~/.signal-keeper/`:
 
 | Path | Contents |
 |------|----------|

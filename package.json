@@ -1,10 +1,10 @@
 {
-  "name": "pr-auto-reviewer",
+  "name": "signal-keeper",
   "version": "0.1.0",
   "description": "Automated GitHub PR reviewer with Claude Code AI and browser UI",
   "type": "module",
   "bin": {
-    "pr-auto-reviewer": "./dist/index.js"
+    "signal-keeper": "./dist/index.js"
   },
   "scripts": {
     "build": "tsup && vite build && chmod +x dist/index.js",

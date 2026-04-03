@@ -10,7 +10,7 @@ import { startServer } from './server/server.js';
 import { openUrl } from './utils/open-url.js';
 
 program
-  .name('pr-auto-reviewer')
+  .name('signal-keeper')
   .description('AI-powered GitHub PR reviewer with browser UI')
   .version('0.1.0');
 
@@ -65,7 +65,7 @@ program
     }
 
     const url = `http://localhost:${config.port}`;
-    console.log(`\n  PR Auto-Reviewer ${opts.dev ? '(dev mode) ' : ''}running at ${url}\n`);
+    console.log(`\n  Signal Keeper ${opts.dev ? '(dev mode) ' : ''}running at ${url}\n`);
 
     if (opts.open !== false) {
       openUrl(url);

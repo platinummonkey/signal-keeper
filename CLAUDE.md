@@ -2,7 +2,7 @@
 
 ## Project
 
-`pr-auto-reviewer` — TypeScript/Node CLI that polls GitHub PRs, runs AI code reviews via Claude Code subprocess, and exposes a keyboard-driven Ink TUI for acting on results.
+`signal-keeper` — TypeScript/Node CLI that polls GitHub PRs, runs AI code reviews via Claude Code subprocess, and exposes a keyboard-driven Ink TUI for acting on results.
 
 ## Build & test
 
@@ -10,7 +10,7 @@
 npm run build       # tsup → dist/ (also chmod +x dist/index.js)
 npm run typecheck   # tsc --noEmit
 npm test            # vitest
-npm link            # register `pr-auto-reviewer` bin in PATH (run once after build)
+npm link            # register `signal-keeper` bin in PATH (run once after build)
 ```
 
 ## Architecture
@@ -81,5 +81,5 @@ claude --print --output-format json --dangerously-skip-permissions \
 
 ## Config location
 
-`~/.pr-auto-reviewer/config.yaml` — created from template on first run if missing.
+`~/.signal-keeper/config.yaml` — created from template on first run if missing.
 Override with `-c /path/to/config.yaml` on any command.

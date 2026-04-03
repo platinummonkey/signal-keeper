@@ -6,8 +6,8 @@ import { configSchema, type ConfigOutput } from './schema.js';
 import { paths } from '../utils/paths.js';
 import type { Target } from './types.js';
 
-const DEFAULT_CONFIG_YAML = `# PR Auto-Reviewer configuration
-# See https://github.com/platinummonkey/pr-auto-reviewer for docs
+const DEFAULT_CONFIG_YAML = `# Signal Keeper configuration
+# See https://github.com/platinummonkey/signal-keeper for docs
 
 github:
   tokenCommand: "gh auth token"
@@ -30,7 +30,7 @@ notifications:
 maxConcurrentReviews: 3
 maxReviewCostUsd: 0.50
 reviewModel: sonnet
-workDir: ~/.pr-auto-reviewer/repos
+workDir: ~/.signal-keeper/repos
 
 # PRs from authors not in any of these orgs are treated as external contributors.
 # External PRs get an initial review pass, then prompt you to approve CI,
