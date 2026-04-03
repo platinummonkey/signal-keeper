@@ -52,6 +52,11 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
               border-radius:20px; padding:3px 10px; font-size:12px; cursor:pointer; transition:all .15s; }
 .filter-btn:hover { border-color:var(--accent); color:var(--text); }
 .filter-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+#repo-select { background:var(--bg3); border:1px solid var(--border); color:var(--text);
+               border-radius:20px; padding:3px 10px 3px 10px; font-size:12px; cursor:pointer;
+               outline:none; margin-left:auto; max-width:200px; }
+#repo-select:focus { border-color:var(--accent); }
+#repo-select option { background:var(--bg2); }
 #pr-list { flex:1; overflow-y:auto; }
 #pr-list::-webkit-scrollbar { width:5px; }
 #pr-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
@@ -207,6 +212,7 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
       <button class="filter-btn" data-f="needs-attention">👀 Attention</button>
       <button class="filter-btn" data-f="needs-changes">⚠ Changes</button>
       <button class="filter-btn" data-f="block">✗ Block</button>
+      <select id="repo-select" title="Filter by repository"></select>
     </div>
     <div id="pr-list"><div class="empty-state">Loading…</div></div>
   </div>
@@ -240,7 +246,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '')
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-let prs = [], selId = null, curFilter = 'all';
+let prs = [], selId = null, curFilter = 'all', curRepo = 'all';
 
 // ─── Toast ────────────────────────────────────────────────────────
 function toast(msg, type='info') {
@@ -297,14 +303,28 @@ function catBadge(cat) {
 async function fetchPRs() {
   try {
     prs = await api('GET', '/prs');
+    updateRepoDropdown();
     renderList();
   } catch(e) {
     $('pr-list').innerHTML = '<div class="empty-state">Error loading PRs:<br>' + esc(e.message) + '</div>';
   }
 }
 
+function updateRepoDropdown() {
+  const sel = $('repo-select');
+  const repos = [...new Set(prs.map(p => \`\${p.owner}/\${p.repo}\`))].sort();
+  const prev = sel.value;
+  sel.innerHTML = '<option value="all">All repos</option>' +
+    repos.map(r => \`<option value="\${esc(r)}">\${esc(r)}</option>\`).join('');
+  // Preserve selection if repo still exists
+  sel.value = repos.includes(prev) ? prev : 'all';
+  if (sel.value !== prev) curRepo = 'all';
+}
+
 function renderList() {
-  const list = curFilter === 'all' ? prs : prs.filter(p => p.latest_review?.category === curFilter);
+  const list = prs
+    .filter(p => curFilter === 'all' || p.latest_review?.category === curFilter)
+    .filter(p => curRepo === 'all' || \`\${p.owner}/\${p.repo}\` === curRepo);
   const el = $('pr-list');
   if (!list.length) {
     el.innerHTML = '<div class="empty-state">' +
@@ -589,6 +609,11 @@ $('filters').addEventListener('click', e => {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   curFilter = btn.dataset.f;
+  renderList();
+});
+
+$('repo-select').addEventListener('change', e => {
+  curRepo = e.target.value;
   renderList();
 });
 
