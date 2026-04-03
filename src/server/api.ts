@@ -5,6 +5,7 @@ import {
 } from '../state/models.js';
 import { actionMerge, actionComment, actionClose } from '../github/pr-actions.js';
 import { reviewPR, generateCommentFromReview } from '../review/engine.js';
+import { fetchPRDiff, fetchPRFiles } from '../github/client.js';
 import { approvePendingWorkflows } from '../daemon.js';
 import { runAutofix } from '../autofix/index.js';
 import { logger } from '../utils/logger.js';
@@ -120,6 +121,20 @@ export function createApiRouter(config: ConfigOutput): Router {
       runAutofix(pr, config)
         .catch((err) => logger.error({ err, prId: pr.id }, 'Autofix failed'));
       res.json({ ok: true, message: 'Autofix started' });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // Diff — fetched live from GitHub, not stored in DB
+  router.get('/prs/:id/diff', async (req: Request, res: Response) => {
+    try {
+      const pr = requirePR(req, res); if (!pr) return;
+      const [diff, files] = await Promise.all([
+        fetchPRDiff(pr.owner, pr.repo, pr.number),
+        fetchPRFiles(pr.owner, pr.repo, pr.number),
+      ]);
+      res.json({ diff, files });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }

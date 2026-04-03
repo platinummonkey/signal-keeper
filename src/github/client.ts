@@ -222,13 +222,42 @@ export async function approveWorkflowRun(owner: string, repo: string, runId: num
   logger.info({ owner, repo, runId }, 'Approved workflow run');
 }
 
+async function getActionRequiredRuns(
+  owner: string,
+  repo: string,
+  headSha: string,
+): Promise<WorkflowRun[]> {
+  try {
+    // Query explicitly for action_required status — more reliable than filtering
+    // the full run list client-side, especially for new contributors' first PRs.
+    // 'action_required' is a valid GitHub status but not in Octokit's narrowed type
+    const { data } = await getOctokit().request('GET /repos/{owner}/{repo}/actions/runs', {
+      owner, repo, head_sha: headSha, status: 'action_required', per_page: 50,
+    }) as { data: { workflow_runs: Array<{ id: number; status: string | null; conclusion: string | null; name: string | null }> } };
+    return data.workflow_runs.map((r) => ({
+      id: r.id,
+      status: r.status,
+      conclusion: r.conclusion ?? null,
+      name: r.name ?? null,
+    }));
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    if (status === 404) {
+      logger.debug({ owner, repo }, 'No action_required runs (404)');
+    } else {
+      logger.warn({ owner, repo, headSha, err }, 'Failed to query action_required runs');
+    }
+    return [];
+  }
+}
+
 export async function hasActionRequiredRuns(
   owner: string,
   repo: string,
   headSha: string,
 ): Promise<boolean> {
-  const runs = await getWorkflowRunsForCommit(owner, repo, headSha);
-  return runs.some((r) => r.status === 'action_required');
+  const runs = await getActionRequiredRuns(owner, repo, headSha);
+  return runs.length > 0;
 }
 
 export async function approveAllActionRequiredRuns(
@@ -236,8 +265,7 @@ export async function approveAllActionRequiredRuns(
   repo: string,
   headSha: string,
 ): Promise<number> {
-  const runs = await getWorkflowRunsForCommit(owner, repo, headSha);
-  const pending = runs.filter((r) => r.status === 'action_required');
+  const pending = await getActionRequiredRuns(owner, repo, headSha);
   await Promise.all(pending.map((r) => approveWorkflowRun(owner, repo, r.id)));
   logger.info({ owner, repo, headSha, count: pending.length }, 'Approved action_required workflow runs');
   return pending.length;

@@ -112,6 +112,37 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
 .chg-sug  { font-size:12px; color:var(--text-dim); font-family:var(--font-mono);
              background:var(--bg3); padding:5px 8px; border-radius:4px; white-space:pre-wrap; word-break:break-word; }
 
+/* Diff */
+.diff-toggle { width:100%; background:none; border:none; text-align:left; cursor:pointer;
+               padding:7px 14px; font-size:11px; font-weight:700; color:var(--text-dim);
+               text-transform:uppercase; letter-spacing:.06em; background:var(--bg3);
+               border-bottom:1px solid var(--border); display:flex; align-items:center; gap:6px; }
+.diff-toggle:hover { color:var(--text); }
+.diff-toggle .arrow { transition:transform .2s; display:inline-block; }
+.diff-toggle.open .arrow { transform:rotate(90deg); }
+.diff-body { display:none; overflow-x:auto; }
+.diff-body.open { display:block; }
+.diff-file-hdr { font-family:var(--font-mono); font-size:12px; font-weight:600;
+                 color:var(--text); background:var(--bg3); padding:6px 12px;
+                 border-bottom:1px solid var(--border); border-top:1px solid var(--border);
+                 margin-top:4px; }
+.diff-file-hdr:first-child { margin-top:0; border-top:none; }
+.diff-table { width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:12px; }
+.diff-table td { padding:1px 8px; white-space:pre; vertical-align:top; line-height:1.6; }
+.diff-ln { color:var(--text-dim); user-select:none; min-width:40px; text-align:right;
+           border-right:1px solid var(--border); padding-right:10px; }
+.d-add  { background:rgba(63,185,80,.1); color:var(--green); }
+.d-del  { background:rgba(248,81,73,.1); color:var(--red); }
+.d-hunk { background:rgba(56,139,253,.07); color:var(--accent); }
+.d-ctx  { color:var(--text-dim); }
+.diff-stats { font-size:11px; color:var(--text-dim); padding:4px 12px;
+              border-top:1px solid var(--border); }
+.diff-stats .add { color:var(--green); }
+.diff-stats .del { color:var(--red); }
+.diff-loading { padding:20px; text-align:center; color:var(--text-dim); font-size:13px; }
+.diff-truncated { padding:6px 12px; font-size:12px; color:var(--yellow);
+                  border-top:1px solid var(--border); background:rgba(210,153,34,.07); }
+
 /* Action bar */
 #action-bar { padding:10px 20px; background:var(--bg2); border-top:1px solid var(--border);
               display:flex; align-items:center; gap:7px; flex-wrap:wrap; flex-shrink:0; }
@@ -302,6 +333,7 @@ function renderList() {
 // ─── Detail ───────────────────────────────────────────────────────
 function openPR(id) {
   selId = id;
+  diffLoaded = false;
   renderList();
   const pr = prs.find(p => p.id === id);
   if (!pr) return;
@@ -360,6 +392,17 @@ function renderBody(pr) {
     html += \`<div class="section"><div class="sec-body" style="color:var(--text-dim);font-size:13px">No review yet — daemon is processing.</div></div>\`;
   }
 
+  // Diff section — collapsed by default, loads lazily on expand
+  html += \`<div class="section" id="diff-section">
+    <button class="diff-toggle" id="diff-toggle" onclick="toggleDiff(\${pr.id})">
+      <span class="arrow">▶</span> Diff
+      <span id="diff-stats-inline" style="font-weight:400;margin-left:4px"></span>
+    </button>
+    <div class="diff-body" id="diff-body">
+      <div class="diff-loading">Loading diff…</div>
+    </div>
+  </div>\`;
+
   ds.innerHTML = html;
 }
 
@@ -381,6 +424,88 @@ function renderActions(pr) {
   bar.innerHTML = btns.join('');
   bar.querySelectorAll('[data-act]').forEach(btn =>
     btn.addEventListener('click', e => handleAction(e, pr.id, btn.dataset.act)));
+}
+
+// ─── Diff ─────────────────────────────────────────────────────────
+let diffLoaded = false;
+
+async function toggleDiff(id) {
+  const toggle = $('diff-toggle');
+  const body   = $('diff-body');
+  if (!toggle || !body) return;
+
+  const isOpen = body.classList.contains('open');
+  if (isOpen) {
+    body.classList.remove('open');
+    toggle.classList.remove('open');
+    return;
+  }
+
+  body.classList.add('open');
+  toggle.classList.add('open');
+
+  if (diffLoaded) return;
+  diffLoaded = true;
+  try {
+    const { diff, files } = await api('GET', \`/prs/\${id}/diff\`);
+    renderDiff(diff, files);
+  } catch(e) {
+    body.innerHTML = \`<div class="diff-loading" style="color:var(--red)">Failed to load diff: \${esc(e.message)}</div>\`;
+    diffLoaded = false;
+  }
+}
+
+function renderDiff(rawDiff, files) {
+  const body = $('diff-body');
+  const statsEl = $('diff-stats-inline');
+  if (!body) return;
+
+  const MAX_LINES = 2000;
+  const lines = rawDiff.split('\\n');
+  const truncated = lines.length > MAX_LINES;
+  const visibleLines = truncated ? lines.slice(0, MAX_LINES) : lines;
+
+  // Summary stats from file list
+  if (files?.length && statsEl) {
+    const adds = files.reduce((s, f) => s + (f.additions || 0), 0);
+    const dels = files.reduce((s, f) => s + (f.deletions || 0), 0);
+    statsEl.innerHTML = \`— <span class="add">+\${adds}</span> <span class="del">-\${dels}</span> across \${files.length} file\${files.length !== 1 ? 's' : ''}\`;
+  }
+
+  // Build table rows — all user content via esc()
+  let html = '<table class="diff-table">';
+  let lineNum = { old: 0, new: 0 };
+  let inFile = false;
+
+  for (const line of visibleLines) {
+    if (line.startsWith('diff --git ')) {
+      // Extract filename from "diff --git a/foo b/foo"
+      const m = line.match(/diff --git a\\/(.+) b\\/.+/);
+      const fname = m ? m[1] : line.slice(11);
+      html += \`</table><div class="diff-file-hdr">\${esc(fname)}</div><table class="diff-table">\`;
+      inFile = true;
+      lineNum = { old: 0, new: 0 };
+    } else if (line.startsWith('@@')) {
+      const m = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)/);
+      if (m) { lineNum.old = parseInt(m[1]) - 1; lineNum.new = parseInt(m[2]) - 1; }
+      html += \`<tr class="d-hunk"><td class="diff-ln"></td><td class="diff-ln"></td><td>\${esc(line)}</td></tr>\`;
+    } else if (line.startsWith('+') && !line.startsWith('+++')) {
+      lineNum.new++;
+      html += \`<tr class="d-add"><td class="diff-ln"></td><td class="diff-ln">\${lineNum.new}</td><td>\${esc(line)}</td></tr>\`;
+    } else if (line.startsWith('-') && !line.startsWith('---')) {
+      lineNum.old++;
+      html += \`<tr class="d-del"><td class="diff-ln">\${lineNum.old}</td><td class="diff-ln"></td><td>\${esc(line)}</td></tr>\`;
+    } else if (line.startsWith('\\\\') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('Binary')) {
+      // skip meta lines from table but don't show blank row
+    } else if (inFile) {
+      lineNum.old++; lineNum.new++;
+      html += \`<tr class="d-ctx"><td class="diff-ln">\${lineNum.old}</td><td class="diff-ln">\${lineNum.new}</td><td>\${esc(line)}</td></tr>\`;
+    }
+  }
+  html += '</table>';
+
+  body.innerHTML = html +
+    (truncated ? \`<div class="diff-truncated">⚠ Diff truncated at \${MAX_LINES} lines. <a href="\${esc(prs.find(p=>p.id===selId)?.url ?? '')+'/files'}" target="_blank" rel="noopener noreferrer">View full diff on GitHub ↗</a></div>\` : '');
 }
 
 // ─── Actions ──────────────────────────────────────────────────────
