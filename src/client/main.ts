@@ -76,6 +76,8 @@ let curRepo: string = 'all';
 let diffLoaded = false;
 let ciLoaded = false;
 let ciPollTimer: ReturnType<typeof setInterval> | null = null;
+let activeTab: 'review' | 'description' | 'ci' | 'diff' = 'review';
+let lastCIData: { status: string; runs: import('./types.ts').WorkflowRun[] } | null = null;
 
 // ── PR List ───────────────────────────────────────────────────────
 async function fetchPRs(): Promise<void> {
@@ -137,6 +139,8 @@ function openPR(id: number): void {
   selId = id;
   diffLoaded = false;
   ciLoaded = false;
+  lastCIData = null;
+  activeTab = 'review';
   stopCIPoll();
   renderList();
   const pr = prs.find(p => p.id === id);
@@ -164,193 +168,173 @@ function renderHeader(pr: PR): void {
      <span class="mpill"><a href="${esc(pr.url)}" target="_blank" rel="noopener noreferrer">Open in GitHub ↗</a></span>`;
 }
 
+// ── Tabs ──────────────────────────────────────────────────────────
 function renderBody(pr: PR): void {
-  const rev = pr.latest_review;
-  let html = '';
+  $('tab-bar').innerHTML = `
+    <button class="tab-btn active" data-tab="review">Review</button>
+    <button class="tab-btn" data-tab="description">Description</button>
+    <button class="tab-btn" data-tab="ci">CI <span id="ci-tab-badge"></span></button>
+    <button class="tab-btn" data-tab="diff">Diff <span id="diff-tab-badge"></span></button>
+  `;
+  $('tab-bar').querySelectorAll<HTMLButtonElement>('.tab-btn').forEach(btn =>
+    btn.addEventListener('click', () => selectTab(pr, btn.dataset.tab as typeof activeTab)));
 
-  if (pr.body?.trim()) {
-    html += `<div class="section"><div class="sec-hdr">Description</div>
-      <div class="sec-body"><div class="desc-text">${esc(pr.body)}</div></div></div>`;
-  }
-
-  if (rev) {
-    const conf = Math.round((rev.confidence ?? 0) * 100);
-    const cost = rev.cost_usd != null ? ` · $${rev.cost_usd.toFixed(4)}` : '';
-    const notes = (rev.notes ?? []).map(n => `<li>${esc(n)}</li>`).join('');
-    const changes = (rev.suggested_changes ?? []).map(sc =>
-      `<div class="chg-item">
-        <div class="chg-file">${esc(sc.file)}</div>
-        <div class="chg-desc">${esc(sc.description)}</div>
-        ${sc.suggestion ? `<div class="chg-sug">${esc(sc.suggestion)}</div>` : ''}
-      </div>`).join('');
-    html += `<div class="section"><div class="sec-hdr">Review</div><div class="sec-body">
-      <div class="rev-top">${catBadge(rev.category)}<span class="rev-conf">confidence: ${conf}%${cost}</span></div>
-      <div class="rev-summary">${esc(rev.summary)}</div>
-      ${notes ? `<ul class="notes">${notes}</ul>` : ''}
-      ${changes}
-    </div></div>`;
-  } else {
-    html += `<div class="section"><div class="sec-body" style="color:var(--text-dim);font-size:13px">No review yet — daemon is processing.</div></div>`;
-  }
-
-  html += `<div class="section" id="ci-section">
-    <button class="diff-toggle" id="ci-toggle">
-      <span class="arrow">▶</span> CI
-      <span id="ci-status-inline" style="font-weight:400;margin-left:6px"></span>
-      <button class="ci-refresh" id="ci-refresh-btn" style="margin-left:auto">↻ Refresh</button>
-    </button>
-    <div class="diff-body" id="ci-body"><div class="diff-loading">Click to load…</div></div>
-  </div>`;
-
-  html += `<div class="section" id="diff-section">
-    <button class="diff-toggle" id="diff-toggle">
-      <span class="arrow">▶</span> Diff
-      <span id="diff-stats-inline" style="font-weight:400;margin-left:4px"></span>
-    </button>
-    <div class="diff-body" id="diff-body"><div class="diff-loading">Click to load…</div></div>
-  </div>`;
-
-  $('detail-scroll').innerHTML = html;
-
-  // Eagerly load CI status so the header badge populates without needing to expand
+  // Load CI in background immediately to populate the tab badge
   void loadCI(pr);
 
-  $('ci-toggle').addEventListener('click', (e) => {
-    // Don't toggle if clicking the refresh button inside the toggle
-    if ((e.target as HTMLElement).id === 'ci-refresh-btn') return;
-    void toggleCI(pr);
-  });
-  $('ci-refresh-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    ciLoaded = false;
-    const body = $('ci-body');
-    if (body.classList.contains('open')) {
-      body.innerHTML = '<div class="diff-loading">Refreshing…</div>';
-      void loadCI(pr);
-    }
-  });
-  $('diff-toggle').addEventListener('click', () => toggleDiff(pr));
+  selectTab(pr, 'review');
+}
+
+function selectTab(pr: PR, tab: typeof activeTab): void {
+  activeTab = tab;
+  $('tab-bar').querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', (b as HTMLElement).dataset.tab === tab));
+
+  const tc = $('tab-content');
+
+  switch (tab) {
+    case 'review':   tc.innerHTML = reviewTabHTML(pr); break;
+    case 'description': tc.innerHTML = descriptionTabHTML(pr); break;
+    case 'ci':
+      if (lastCIData) {
+        tc.innerHTML = ciRunsHTML(pr, lastCIData.status, lastCIData.runs);
+      } else {
+        tc.innerHTML = '<div class="tab-empty">Loading CI…</div>';
+        if (!ciLoaded) void loadCI(pr);
+      }
+      break;
+    case 'diff':
+      if (!diffLoaded) {
+        tc.innerHTML = '<div class="tab-empty">Loading diff…</div>';
+        void loadDiff(pr);
+      }
+      break;
+  }
+}
+
+function reviewTabHTML(pr: PR): string {
+  const rev = pr.latest_review;
+  if (!rev) return '<div class="tab-empty">No review yet — daemon is processing.</div>';
+  const conf = Math.round((rev.confidence ?? 0) * 100);
+  const cost = rev.cost_usd != null ? ` · $${rev.cost_usd.toFixed(4)}` : '';
+  const notes = (rev.notes ?? []).map(n => `<li>${esc(n)}</li>`).join('');
+  const changes = (rev.suggested_changes ?? []).map(sc =>
+    `<div class="chg-item">
+      <div class="chg-file">${esc(sc.file)}</div>
+      <div class="chg-desc">${esc(sc.description)}</div>
+      ${sc.suggestion ? `<div class="chg-sug">${esc(sc.suggestion)}</div>` : ''}
+    </div>`).join('');
+  return `<div class="section"><div class="sec-body">
+    <div class="rev-top">${catBadge(rev.category)}<span class="rev-conf">confidence: ${conf}%${cost}</span></div>
+    <div class="rev-summary">${esc(rev.summary)}</div>
+    ${notes ? `<ul class="notes">${notes}</ul>` : ''}
+    ${changes}
+  </div></div>`;
+}
+
+function descriptionTabHTML(pr: PR): string {
+  if (!pr.body?.trim()) return '<div class="tab-empty">No description provided.</div>';
+  return `<div class="section"><div class="sec-body"><div class="desc-text">${esc(pr.body)}</div></div></div>`;
 }
 
 function stopCIPoll(): void {
   if (ciPollTimer) { clearInterval(ciPollTimer); ciPollTimer = null; }
 }
 
-// ── CI Status ─────────────────────────────────────────────────────
+// ── CI ────────────────────────────────────────────────────────────
 const CI_ICON: Record<string, string> = {
-  pending: '⟳', in_progress: '⟳', queued: '⏳', waiting: '⏳', requested: '⏳',
-  completed: '', action_required: '⏸',
+  pending:'⟳', in_progress:'⟳', queued:'⏳', waiting:'⏳', requested:'⏳', action_required:'⏸',
 };
 const CONCLUSION_ICON: Record<string, string> = {
-  success: '✓', skipped: '◌', neutral: '◌',
-  failure: '✗', cancelled: '✗', timed_out: '✗', action_required: '⏸',
+  success:'✓', skipped:'◌', neutral:'◌', failure:'✗', cancelled:'✗', timed_out:'✗', action_required:'⏸',
 };
-const CONCLUSION_CLASS: Record<string, string> = {
-  success: 'color:var(--green)', skipped: 'color:var(--text-dim)', neutral: 'color:var(--text-dim)',
-  failure: 'color:var(--red)', cancelled: 'color:var(--red)', timed_out: 'color:var(--red)',
-  action_required: 'color:var(--yellow)',
+const CONCLUSION_STYLE: Record<string, string> = {
+  success:'color:var(--green)', skipped:'color:var(--text-dim)', neutral:'color:var(--text-dim)',
+  failure:'color:var(--red)', cancelled:'color:var(--red)', timed_out:'color:var(--red)',
+  action_required:'color:var(--yellow)',
 };
 
-async function toggleCI(pr: PR): Promise<void> {
-  const toggle = $('ci-toggle');
-  const body   = $('ci-body');
-  const isOpen = body.classList.contains('open');
-  if (isOpen) {
-    body.classList.remove('open');
-    toggle.classList.remove('open');
-    return;
-  }
-  body.classList.add('open');
-  toggle.classList.add('open');
-  if (!ciLoaded) await loadCI(pr);
+function ciRunsHTML(pr: PR, status: string, runs: import('./types.ts').WorkflowRun[]): string {
+  const badge = ciStatusBadge(status);
+  if (!runs.length) return `${badge}<p class="tab-empty" style="margin-top:10px">No workflow runs found.</p>`;
+  const rows = runs.map(r => {
+    const icon  = r.conclusion ? (CONCLUSION_ICON[r.conclusion] ?? '?') : (CI_ICON[r.status ?? ''] ?? '⟳');
+    const style = r.conclusion ? (CONCLUSION_STYLE[r.conclusion] ?? '') : 'color:var(--yellow)';
+    const label = r.conclusion
+      ? `<span style="${style}">${esc(r.conclusion)}</span>`
+      : `<span style="color:var(--yellow)">${esc(r.status ?? 'unknown')}</span>`;
+    const url = `https://github.com/${pr.owner}/${pr.repo}/actions/runs/${r.id}`;
+    return `<div class="ci-run">
+      <span class="ci-run-icon" style="${style}">${icon}</span>
+      <span class="ci-run-name"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(r.name ?? 'Workflow')}</a></span>
+      <span class="ci-run-status">${label}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:10px">${badge}</div><div class="ci-runs">${rows}</div>`;
+}
+
+function ciStatusBadge(status: string): string {
+  const map: Record<string, [string, string]> = {
+    pending:['ci-pending','⟳ pending'], passed:['ci-passed','✓ passed'],
+    failed:['ci-failed','✗ failed'],    no_runs:['ci-noruns','— no runs'],
+  };
+  const [cls, label] = map[status] ?? ['ci-noruns', esc(status)];
+  return `<span class="ci-badge ${cls}">${label}</span>`;
 }
 
 async function loadCI(pr: PR): Promise<void> {
   ciLoaded = true;
   try {
     const { status, runs } = await api.getCI(pr.id);
+    lastCIData = { status, runs };
 
-    // Update inline badge
-    const inline = $('ci-status-inline');
-    if (inline) inline.innerHTML = ciStatusBadge(status);
-
-    const body = $('ci-body');
-    if (!runs.length) {
-      body.innerHTML = '<div class="diff-loading" style="color:var(--text-dim)">No workflow runs found.</div>';
-    } else {
-      const rows = runs.map(r => {
-        const icon  = r.conclusion ? (CONCLUSION_ICON[r.conclusion] ?? '?') : (CI_ICON[r.status ?? ''] ?? '⟳');
-        const style = r.conclusion ? (CONCLUSION_CLASS[r.conclusion] ?? '') : 'color:var(--yellow)';
-        const label = r.conclusion
-          ? `<span style="${style}">${esc(r.conclusion)}</span>`
-          : `<span style="color:var(--yellow)">${esc(r.status ?? 'unknown')}</span>`;
-        const runUrl = `https://github.com/${pr.owner}/${pr.repo}/actions/runs/${r.id}`;
-        return `<div class="ci-run">
-          <span class="ci-run-icon" style="${style}">${icon}</span>
-          <span class="ci-run-name"><a href="${esc(runUrl)}" target="_blank" rel="noopener noreferrer">${esc(r.name ?? 'Workflow')}</a></span>
-          <span class="ci-run-status">${label}</span>
-        </div>`;
-      }).join('');
-      body.innerHTML = `<div class="ci-runs" style="padding:10px 14px">${rows}</div>`;
+    // Update tab badge regardless of active tab
+    const badge = document.getElementById('ci-tab-badge');
+    if (badge) {
+      const badgeCls: Record<string, string> = { pending:'ci-pending', passed:'ci-passed', failed:'ci-failed' };
+      badge.className = 'tab-badge ' + (badgeCls[status] ?? 'ci-noruns');
+      badge.textContent = status === 'pending' ? '⟳' : status === 'passed' ? '✓' : status === 'failed' ? '✗' : '';
     }
 
-    // Auto-poll while pending; stop once everything has passed
+    // Update tab content if CI tab is active
+    if (activeTab === 'ci') {
+      $('tab-content').innerHTML = ciRunsHTML(pr, status, runs);
+    }
+
+    // Auto-poll while pending; stop when done
     if (status === 'pending') {
-      if (!ciPollTimer) {
-        ciPollTimer = setInterval(() => void loadCI(pr), 15_000);
-      }
+      if (!ciPollTimer) ciPollTimer = setInterval(() => void loadCI(pr), 15_000);
     } else {
       stopCIPoll();
     }
   } catch (e) {
-    $('ci-body').innerHTML = `<div class="diff-loading" style="color:var(--red)">Failed: ${esc((e as Error).message)}</div>`;
     ciLoaded = false;
     stopCIPoll();
+    if (activeTab === 'ci') {
+      $('tab-content').innerHTML = `<div class="tab-empty" style="color:var(--red)">Failed: ${esc((e as Error).message)}</div>`;
+    }
   }
-}
-
-function ciStatusBadge(status: string): string {
-  const map: Record<string, [string, string]> = {
-    pending:  ['ci-pending', '⟳ pending'],
-    passed:   ['ci-passed',  '✓ passed'],
-    failed:   ['ci-failed',  '✗ failed'],
-    no_runs:  ['ci-noruns',  '— no runs'],
-  };
-  const [cls, label] = map[status] ?? ['ci-noruns', esc(status)];
-  return `<span class="ci-badge ${cls}">${label}</span>`;
 }
 
 // ── Diff ──────────────────────────────────────────────────────────
-async function toggleDiff(pr: PR): Promise<void> {
-  const toggle = $('diff-toggle');
-  const body   = $('diff-body');
-  const isOpen = body.classList.contains('open');
-
-  if (isOpen) {
-    body.classList.remove('open');
-    toggle.classList.remove('open');
-    return;
-  }
-  body.classList.add('open');
-  toggle.classList.add('open');
-  if (diffLoaded) return;
-
+async function loadDiff(pr: PR): Promise<void> {
   diffLoaded = true;
-  body.innerHTML = '<div class="diff-loading">Loading diff…</div>';
-
   try {
     const { diff, files } = await api.getDiff(pr.id);
-    body.innerHTML = renderDiff(diff, files, pr.url);
-
-    const statsEl = $('diff-stats-inline');
-    if (statsEl && files.length) {
+    if (activeTab === 'diff') {
+      $('tab-content').innerHTML = renderDiff(diff, files, pr.url);
+    }
+    if (files.length) {
       const adds = files.reduce((s, f) => s + f.additions, 0);
       const dels = files.reduce((s, f) => s + f.deletions, 0);
-      statsEl.innerHTML = `— <span class="add">+${adds}</span> <span class="del">-${dels}</span> across ${files.length} file${files.length !== 1 ? 's' : ''}`;
+      const badge = document.getElementById('diff-tab-badge');
+      if (badge) badge.innerHTML = `<span class="add">+${adds}</span> <span class="del">-${dels}</span>`;
     }
   } catch (e) {
-    body.innerHTML = `<div class="diff-loading" style="color:var(--red)">Failed: ${esc((e as Error).message)}</div>`;
     diffLoaded = false;
+    if (activeTab === 'diff') {
+      $('tab-content').innerHTML = `<div class="tab-empty" style="color:var(--red)">Failed: ${esc((e as Error).message)}</div>`;
+    }
   }
 }
 
@@ -461,7 +445,11 @@ function clearDetail(): void {
 function refreshDetail(): void {
   if (!selId) return;
   const pr = prs.find(p => p.id === selId);
-  if (pr) { renderHeader(pr); renderBody(pr); renderActions(pr); }
+  if (!pr) return;
+  renderHeader(pr);
+  renderActions(pr);
+  // Re-render tab content for the active tab (review data may have changed)
+  if (activeTab === 'review') $('tab-content').innerHTML = reviewTabHTML(pr);
 }
 
 // ── Filters ───────────────────────────────────────────────────────
