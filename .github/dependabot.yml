@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # Keep GitHub Actions pinned hashes up to date
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+
+  # Keep npm dependencies up to date
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "deps"
+    labels:
+      - dependencies
+    ignore:
+      # esbuild is pinned via overrides; let that be intentional
+      - dependency-name: esbuild
+        update-types: ["version-update:semver-major"]
