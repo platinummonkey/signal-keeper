@@ -21,13 +21,15 @@ export function CustomPromptScreen({ onSubmit, onCancel }: CustomPromptScreenPro
   });
 
   return (
-    <Box flexDirection="column" padding={1} gap={1}>
-      <Text bold>Custom Re-Review Prompt</Text>
-      <Text dimColor>
-        Add extra instructions for Claude, or press <Text bold>Enter</Text> with an empty field to re-review as-is. <Text bold>Esc</Text> to cancel.
-      </Text>
-      <Box borderStyle="single" paddingX={1}>
-        <TextInput value={value} onChange={setValue} placeholder="e.g. Focus on security concerns… (or leave empty)" />
+    <Box flexDirection="column" height="100%" justifyContent="center" alignItems="center">
+      <Box flexDirection="column" padding={2} gap={1} borderStyle="round" width={70}>
+        <Text bold>Custom Re-Review Prompt</Text>
+        <Text dimColor>
+          Add extra instructions for Claude, or press <Text bold>Enter</Text> with an empty field to re-review as-is. <Text bold>Esc</Text> to cancel.
+        </Text>
+        <Box borderStyle="single" paddingX={1}>
+          <TextInput value={value} onChange={setValue} placeholder="e.g. Focus on security concerns… (or leave empty)" />
+        </Box>
       </Box>
     </Box>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { render } from 'ink';
+import { render, useStdout, Box } from 'ink';
 import { PRListScreen } from './screens/pr-list.js';
 import { PRDetailScreen } from './screens/pr-detail.js';
 import { CustomPromptScreen } from './screens/custom-prompt.js';
@@ -26,6 +26,10 @@ interface AppProps {
 }
 
 function App({ config }: AppProps) {
+  const { stdout } = useStdout();
+  const height = stdout?.rows ?? 24;
+  const width = stdout?.columns ?? 80;
+
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedPR, setSelectedPR] = useState<PRWithReview | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | undefined>();
@@ -133,38 +137,34 @@ function App({ config }: AppProps) {
 
   // --- Screen rendering ---
 
+  let content: React.ReactNode;
+
   if (screen === 'confirm-merge' && selectedPR) {
-    return (
+    content = (
       <ConfirmScreen
         message={`Merge ${selectedPR.owner}/${selectedPR.repo}#${selectedPR.number} — "${selectedPR.title}"?`}
         onConfirm={() => executeMerge(selectedPR)}
         onCancel={backToDetail}
       />
     );
-  }
-
-  if (screen === 'confirm-close' && selectedPR) {
-    return (
+  } else if (screen === 'confirm-close' && selectedPR) {
+    content = (
       <ConfirmScreen
         message={`Close ${selectedPR.owner}/${selectedPR.repo}#${selectedPR.number} — "${selectedPR.title}"?`}
         onConfirm={() => executeClose(selectedPR)}
         onCancel={backToDetail}
       />
     );
-  }
-
-  if (screen === 'comment-input' && selectedPR) {
-    return (
+  } else if (screen === 'comment-input' && selectedPR) {
+    content = (
       <CommentInputScreen
         prLabel={`${selectedPR.owner}/${selectedPR.repo}#${selectedPR.number}`}
         onSubmit={(body) => executeComment(selectedPR, body)}
         onCancel={backToDetail}
       />
     );
-  }
-
-  if (screen === 'custom-prompt' && pendingReview) {
-    return (
+  } else if (screen === 'custom-prompt' && pendingReview) {
+    content = (
       <CustomPromptScreen
         onSubmit={(prompt) => {
           backToDetail();
@@ -173,10 +173,8 @@ function App({ config }: AppProps) {
         onCancel={backToDetail}
       />
     );
-  }
-
-  if (screen === 'detail' && selectedPR) {
-    return (
+  } else if (screen === 'detail' && selectedPR) {
+    content = (
       <PRDetailScreen
         pr={selectedPR}
         config={config}
@@ -189,14 +187,20 @@ function App({ config }: AppProps) {
         onApproveCI={handleApproveCI}
       />
     );
+  } else {
+    content = (
+      <PRListScreen
+        onOpenDetail={openDetail}
+        onQuit={() => process.exit(0)}
+        statusMessage={statusMessage}
+      />
+    );
   }
 
   return (
-    <PRListScreen
-      onOpenDetail={openDetail}
-      onQuit={() => process.exit(0)}
-      statusMessage={statusMessage}
-    />
+    <Box width={width} height={height} flexDirection="column">
+      {content}
+    </Box>
   );
 }
 
