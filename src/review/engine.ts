@@ -70,7 +70,7 @@ export async function reviewPR(
     title: ghPR.title, author: ghPR.author, body: ghPR.body,
     head_sha: ghPR.headSha, base_branch: ghPR.baseBranch, state: ghPR.state,
     url: ghPR.url, created_at: ghPR.createdAt, updated_at: ghPR.updatedAt,
-    is_external: 0, external_stage: null,
+    is_external: 0, external_stage: null, pending_approval: 0,
   });
 
   const existingPR = getPR(owner, repo, number);

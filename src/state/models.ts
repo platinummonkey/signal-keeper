@@ -23,6 +23,7 @@ export interface PR {
   discovered_at: string;
   is_external: number;       // 0 | 1
   external_stage: ExternalStage | null;
+  pending_approval: number;  // 0 | 1
 }
 
 export interface Review {
@@ -65,8 +66,8 @@ export interface AutofixJob {
 export function upsertPR(data: Omit<PR, 'id' | 'discovered_at'>): PR {
   const db = getDb();
   return db.prepare(`
-    INSERT INTO prs (owner, repo, number, title, author, head_sha, base_branch, state, url, body, created_at, updated_at, is_external, external_stage)
-    VALUES (@owner, @repo, @number, @title, @author, @head_sha, @base_branch, @state, @url, @body, @created_at, @updated_at, @is_external, @external_stage)
+    INSERT INTO prs (owner, repo, number, title, author, head_sha, base_branch, state, url, body, created_at, updated_at, is_external, external_stage, pending_approval)
+    VALUES (@owner, @repo, @number, @title, @author, @head_sha, @base_branch, @state, @url, @body, @created_at, @updated_at, @is_external, @external_stage, @pending_approval)
     ON CONFLICT(owner, repo, number) DO UPDATE SET
       title = excluded.title,
       head_sha = excluded.head_sha,
@@ -74,13 +75,24 @@ export function upsertPR(data: Omit<PR, 'id' | 'discovered_at'>): PR {
       body = excluded.body,
       updated_at = excluded.updated_at,
       is_external = excluded.is_external
-      -- external_stage is intentionally NOT updated here; use setExternalStage()
+      -- external_stage and pending_approval are intentionally NOT updated here;
+      -- use setExternalStage() and setPendingApproval()
     RETURNING *
-  `).get(Object.assign({ is_external: 0, external_stage: null, body: '' }, data)) as PR;
+  `).get(Object.assign({ is_external: 0, external_stage: null, body: '', pending_approval: 0 }, data)) as PR;
 }
 
 export function setExternalStage(prId: number, stage: ExternalStage | null): void {
   getDb().prepare('UPDATE prs SET external_stage = ? WHERE id = ?').run(stage, prId);
+}
+
+export function setPendingApproval(prId: number, pending: boolean): void {
+  getDb().prepare('UPDATE prs SET pending_approval = ? WHERE id = ?').run(pending ? 1 : 0, prId);
+}
+
+export function listPRsPendingApproval(): PR[] {
+  return getDb().prepare(
+    "SELECT * FROM prs WHERE state = 'open' AND pending_approval = 1",
+  ).all() as PR[];
 }
 
 export function listExternalPRsAwaitingCi(): PR[] {

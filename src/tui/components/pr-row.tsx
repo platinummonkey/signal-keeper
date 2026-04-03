@@ -34,8 +34,8 @@ export function PRRow({ pr, selected, terminalWidth }: PRRowProps) {
       {pr.is_external ? <Text color="magenta" bold>[ext]</Text> : null}
       <Text bold={selected} wrap="truncate-end">{title}</Text>
       <Text color={badge.color} bold>{badge.label}</Text>
-      {!!pr.is_external && pr.external_stage === 'awaiting_approval' && (
-        <Text color="yellow" bold>⏸ awaiting CI</Text>
+      {(!!pr.pending_approval || (!!pr.is_external && pr.external_stage === 'awaiting_approval')) && (
+        <Text color="yellow" bold>⏸ approve CI</Text>
       )}
       {!!pr.is_external && pr.external_stage === 'ci_pending' && (
         <Text color="cyan">⟳ CI running</Text>

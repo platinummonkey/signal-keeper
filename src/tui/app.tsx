@@ -10,7 +10,7 @@ import { actionMerge, actionClose, actionComment } from '../github/pr-actions.js
 import { reviewPR, generateCommentFromReview } from '../review/engine.js';
 import { getLatestReview } from '../state/models.js';
 import { runAutofix } from '../autofix/index.js';
-import { approveExternalCI } from '../daemon.js';
+import { approvePendingWorkflows } from '../daemon.js';
 import { logger } from '../utils/logger.js';
 import type { PRWithReview } from './hooks/use-pr-list.js';
 import type { ConfigOutput } from '../config/schema.js';
@@ -120,7 +120,7 @@ function App({ config }: AppProps) {
   async function handleApproveCI(pr: PRWithReview) {
     setStatusMessage('Approving CI workflows…');
     try {
-      await approveExternalCI(pr);
+      await approvePendingWorkflows(pr);
       setStatusMessage(`✓ CI approved for ${pr.owner}/${pr.repo}#${pr.number} — watching for completion`);
     } catch (err) {
       setStatusMessage(`CI approval failed: ${(err as Error).message}`);

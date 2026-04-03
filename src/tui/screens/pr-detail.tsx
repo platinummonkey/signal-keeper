@@ -45,7 +45,7 @@ export function PRDetailScreen({
     if (input === 'o') { openUrl(pr.url); setStatusMsg(`Opened ${pr.url}`); return; }
     if (input === 'g') { onGenerateComment(pr); return; }
     if (input === 'f') { onAutofix(pr); return; }
-    if (input === 'a' && pr.is_external && pr.external_stage === 'awaiting_approval') {
+    if (input === 'a' && (!!pr.pending_approval || (pr.is_external && pr.external_stage === 'awaiting_approval'))) {
       onApproveCI(pr); return;
     }
   });
@@ -65,7 +65,7 @@ export function PRDetailScreen({
         {pr.is_external ? <Text color="magenta" bold>[external]</Text> : null}
         <Text dimColor>base: {pr.base_branch}</Text>
         <Text dimColor>sha: {pr.head_sha.slice(0, 7)}</Text>
-        {pr.external_stage === 'awaiting_approval' && <Text color="yellow" bold>⏸ awaiting CI approval</Text>}
+        {(!!pr.pending_approval || pr.external_stage === 'awaiting_approval') && <Text color="yellow" bold>⏸ workflows need approval — press [a]</Text>}
         {pr.external_stage === 'ci_pending' && <Text color="cyan">⟳ CI running</Text>}
         {pr.external_stage === 'complete' && <Text color="green">✓ final review done</Text>}
         {decision && (
@@ -103,7 +103,7 @@ export function PRDetailScreen({
         { key: 'p', label: 'custom prompt' },
         { key: 'g', label: 'generate comment' },
         { key: 'o', label: 'open in browser' },
-        ...(pr.is_external && pr.external_stage === 'awaiting_approval'
+        ...(!!pr.pending_approval || (pr.is_external && pr.external_stage === 'awaiting_approval')
           ? [{ key: 'a', label: 'approve CI' }]
           : []),
         { key: 'Esc', label: 'back' },

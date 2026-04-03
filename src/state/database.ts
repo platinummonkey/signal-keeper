@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS prs (
   discovered_at TEXT NOT NULL DEFAULT (datetime('now')),
   is_external INTEGER NOT NULL DEFAULT 0,
   external_stage TEXT,
+  pending_approval INTEGER NOT NULL DEFAULT 0,
   UNIQUE(owner, repo, number)
 );
 
@@ -77,6 +78,7 @@ const MIGRATIONS_V2 = [
   `DROP INDEX IF EXISTS reviews_pr_id_head_sha_unique`,
   `CREATE UNIQUE INDEX IF NOT EXISTS reviews_pr_id_head_sha_stage ON reviews(pr_id, head_sha, stage)`,
   `ALTER TABLE reviews ADD COLUMN session_id TEXT`,
+  `ALTER TABLE prs ADD COLUMN pending_approval INTEGER NOT NULL DEFAULT 0`,
 ];
 
 let _db: Database.Database | null = null;

@@ -4,7 +4,9 @@ import { tmpdir } from 'os';
 import { rmSync } from 'fs';
 import { initDb } from './database.js';
 import {
-  upsertPR, getPR, listOpenPRs, markPRClosed, setExternalStage, listExternalPRsAwaitingCi,
+  upsertPR, getPR, listOpenPRs, markPRClosed,
+  setExternalStage, listExternalPRsAwaitingCi,
+  setPendingApproval, listPRsPendingApproval,
   upsertReview, insertReview, getLatestReview, getLatestReviewByStage,
   recordDecision, getLatestDecision,
   createAutofixJob, updateAutofixJob,
@@ -20,7 +22,7 @@ const BASE_PR = {
   head_sha: 'abc123', base_branch: 'main',
   state: 'open', url: 'https://github.com/acme/widget/pull/1',
   created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
-  is_external: 0 as 0 | 1, external_stage: null,
+  is_external: 0 as 0 | 1, external_stage: null, pending_approval: 0,
 };
 
 describe('PR model', () => {
@@ -53,6 +55,17 @@ describe('PR model', () => {
     expect(listOpenPRs()).toHaveLength(1);
     markPRClosed('acme', 'widget', 1);
     expect(listOpenPRs()).toHaveLength(0);
+  });
+
+  it('sets and reads pending_approval', () => {
+    const pr = upsertPR(BASE_PR);
+    expect(pr.pending_approval).toBe(0);
+
+    setPendingApproval(pr.id, true);
+    expect(listPRsPendingApproval()).toHaveLength(1);
+
+    setPendingApproval(pr.id, false);
+    expect(listPRsPendingApproval()).toHaveLength(0);
   });
 
   it('sets and reads external stage', () => {

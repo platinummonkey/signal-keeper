@@ -2,12 +2,12 @@ import { logger } from './utils/logger.js';
 import { pollAllTargets } from './github/poller.js';
 import {
   upsertPR, markPRClosed, listOpenPRs, getLatestReview,
-  setExternalStage, listExternalPRsAwaitingCi, getLatestReviewByStage,
+  setExternalStage, setPendingApproval, listExternalPRsAwaitingCi, getLatestReviewByStage,
 } from './state/models.js';
 import { reviewPR, reviewExternalInitial, reviewExternalFinal } from './review/engine.js';
 import { notifyReviewComplete } from './notifications/notifier.js';
 import {
-  isExternalContributor, getCIStatus, getWorkflowRunsForCommit, approveWorkflowRun,
+  isExternalContributor, getCIStatus, hasActionRequiredRuns, approveAllActionRequiredRuns,
 } from './github/client.js';
 import type { ConfigOutput } from './config/schema.js';
 
@@ -52,23 +52,40 @@ async function handleExternalInitial(
   logger.info({ owner: pr.owner, repo: pr.repo, number: pr.number }, 'External PR awaiting CI approval');
 }
 
-export async function approveExternalCI(
+export async function approvePendingWorkflows(
   pr: ReturnType<typeof listOpenPRs>[number],
 ): Promise<void> {
-  const runs = await getWorkflowRunsForCommit(pr.owner, pr.repo, pr.head_sha);
+  const count = await approveAllActionRequiredRuns(pr.owner, pr.repo, pr.head_sha);
 
-  if (runs.length === 0) {
-    logger.warn({ owner: pr.owner, repo: pr.repo, number: pr.number }, 'No workflow runs found to approve');
+  if (count === 0) {
+    logger.warn({ owner: pr.owner, repo: pr.repo, number: pr.number }, 'No action_required workflow runs found');
   }
 
-  for (const run of runs) {
-    if (run.status === 'action_required') {
-      await approveWorkflowRun(pr.owner, pr.repo, run.id);
+  setPendingApproval(pr.id, false);
+
+  // Advance external PR stage if applicable
+  if (pr.is_external && pr.external_stage === 'awaiting_approval') {
+    setExternalStage(pr.id, 'ci_pending');
+  }
+
+  logger.info({ owner: pr.owner, repo: pr.repo, number: pr.number, count }, 'Approved pending workflows');
+}
+
+async function checkPendingApprovals(): Promise<void> {
+  const openPRs = listOpenPRs();
+  await Promise.all(openPRs.map(async (pr) => {
+    try {
+      const needs = await hasActionRequiredRuns(pr.owner, pr.repo, pr.head_sha);
+      if (needs !== !!pr.pending_approval) {
+        setPendingApproval(pr.id, needs);
+        if (needs) {
+          logger.info({ owner: pr.owner, repo: pr.repo, number: pr.number }, 'PR has action_required workflow runs');
+        }
+      }
+    } catch (err) {
+      logger.warn({ owner: pr.owner, repo: pr.repo, number: pr.number, err }, 'Failed to check workflow approval status');
     }
-  }
-
-  setExternalStage(pr.id, 'ci_pending');
-  logger.info({ owner: pr.owner, repo: pr.repo, number: pr.number }, 'Approved CI for external PR');
+  }));
 }
 
 async function checkExternalCIPending(config: ConfigOutput): Promise<void> {
@@ -125,7 +142,8 @@ async function pollCycle(): Promise<void> {
         head_sha: pr.headSha, base_branch: pr.baseBranch, state: pr.state,
         url: pr.url, created_at: pr.createdAt, updated_at: pr.updatedAt,
         is_external: isExternal ? 1 : 0,
-        external_stage: null,  // preserved via ON CONFLICT; only set on new rows
+        external_stage: null,   // preserved via ON CONFLICT; only set on new rows
+        pending_approval: 0,    // preserved via ON CONFLICT; only set via setPendingApproval()
       });
       discoveredKeys.add(`${pr.owner}/${pr.repo}#${pr.number}`);
     }
@@ -138,6 +156,9 @@ async function pollCycle(): Promise<void> {
         logger.info({ owner: p.owner, repo: p.repo, number: p.number }, 'Marked PR closed');
       }
     }
+
+    // Detect action_required workflow runs on all open PRs
+    await checkPendingApprovals();
 
     // Check CI completion for external PRs already approved
     await checkExternalCIPending(_config);

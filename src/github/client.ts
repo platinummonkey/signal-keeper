@@ -212,6 +212,27 @@ export async function approveWorkflowRun(owner: string, repo: string, runId: num
   logger.info({ owner, repo, runId }, 'Approved workflow run');
 }
 
+export async function hasActionRequiredRuns(
+  owner: string,
+  repo: string,
+  headSha: string,
+): Promise<boolean> {
+  const runs = await getWorkflowRunsForCommit(owner, repo, headSha);
+  return runs.some((r) => r.status === 'action_required');
+}
+
+export async function approveAllActionRequiredRuns(
+  owner: string,
+  repo: string,
+  headSha: string,
+): Promise<number> {
+  const runs = await getWorkflowRunsForCommit(owner, repo, headSha);
+  const pending = runs.filter((r) => r.status === 'action_required');
+  await Promise.all(pending.map((r) => approveWorkflowRun(owner, repo, r.id)));
+  logger.info({ owner, repo, headSha, count: pending.length }, 'Approved action_required workflow runs');
+  return pending.length;
+}
+
 export async function getCIStatus(
   owner: string,
   repo: string,
