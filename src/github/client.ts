@@ -45,7 +45,12 @@ export async function getTeamMembers(org: string, team: string): Promise<Set<str
       }
     }
   } catch (err) {
-    logger.warn({ org, team, err }, 'Failed to fetch team members');
+    const status = (err as { status?: number }).status;
+    if (status === 404) {
+      logger.debug({ org, team }, 'Team not found (404)');
+    } else {
+      logger.warn({ org, team, err }, 'Failed to fetch team members');
+    }
   }
   return members;
 }
@@ -202,7 +207,12 @@ export async function getWorkflowRunsForCommit(
       name: r.name ?? null,
     }));
   } catch (err) {
-    logger.warn({ owner, repo, headSha, err }, 'Failed to fetch workflow runs');
+    const status = (err as { status?: number }).status;
+    if (status === 404) {
+      logger.debug({ owner, repo }, 'No workflow runs found (404) — Actions may not be enabled');
+    } else {
+      logger.warn({ owner, repo, headSha, err }, 'Failed to fetch workflow runs');
+    }
     return [];
   }
 }

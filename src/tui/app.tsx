@@ -138,6 +138,7 @@ function App({ config }: AppProps) {
       });
   }
 
+  // 'n' key in detail view (generate AI note/comment)
   function handleGenerateComment(pr: PRWithReview) {
     setSelectedPR(pr);
     setScreen('generate-comment');

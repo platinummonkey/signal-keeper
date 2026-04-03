@@ -70,7 +70,12 @@ async function pollRepo(
       }
     }
   } catch (err) {
-    logger.warn({ owner, repo, err }, 'Failed to poll repo');
+    const status = (err as { status?: number }).status;
+    if (status === 404) {
+      logger.debug({ owner, repo }, 'Repo not found or no access (404)');
+    } else {
+      logger.warn({ owner, repo, err }, 'Failed to poll repo');
+    }
   }
 
   return applyFilter(prs, filter, teamContext?.org, teamContext?.team);
@@ -97,7 +102,12 @@ async function pollOrg(org: string, filter: string, team?: string): Promise<Gith
       }
     }
   } catch (err) {
-    logger.warn({ org, err }, 'Failed to poll org');
+    const status = (err as { status?: number }).status;
+    if (status === 404) {
+      logger.debug({ org }, 'Org not found or no access (404)');
+    } else {
+      logger.warn({ org, err }, 'Failed to poll org');
+    }
   }
 
   return prs;

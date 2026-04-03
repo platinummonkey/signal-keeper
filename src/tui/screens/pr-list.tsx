@@ -34,7 +34,7 @@ export function PRListScreen({ onOpenDetail, onQuit, statusMessage }: PRListScre
   } = usePRList(2000);
 
   useInput((input, key) => {
-    if (input === 'q' || key.escape) {
+    if (input === 'q' || key.escape || input === '\x1b') {
       onQuit();
       return;
     }
