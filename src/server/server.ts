@@ -11,7 +11,7 @@ import { logger } from '../utils/logger.js';
 import type { ConfigOutput } from '../config/schema.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CLIENT_DIST = join(__dirname, '..', 'client');
+const CLIENT_DIST = join(__dirname, 'client');
 
 export function startServer(config: ConfigOutput, devMode = false): Promise<void> {
   return new Promise((resolve, reject) => {
