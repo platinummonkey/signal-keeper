@@ -19,6 +19,7 @@ program
   .description('Start the daemon and open the browser UI')
   .option('-c, --config <path>', 'Config file path')
   .option('--log-level <level>', 'Log level (default: info)', 'info')
+  .option('--dev', 'Dev mode: skip serving static files (Vite handles it)', false)
   .option('--no-open', 'Do not automatically open the browser')
   .action(async (opts) => {
     mkdirSync(paths.baseDir, { recursive: true });
@@ -57,14 +58,15 @@ program
 
     // Start the web server first, then the daemon
     try {
-      await startServer(config);
+      await startServer(config, opts.dev === true);
     } catch (err) {
       console.error(`Server failed to start: ${(err as Error).message}`);
       process.exit(1);
     }
 
-    const url = `http://localhost:${config.port}`;
-    console.log(`\n  PR Auto-Reviewer running at ${url}\n`);
+    const uiPort = opts.dev === true ? 5173 : config.port;
+    const url = `http://localhost:${uiPort}`;
+    console.log(`\n  PR Auto-Reviewer ${opts.dev ? '(dev mode) ' : ''}running at ${url}\n`);
 
     if (opts.open !== false) {
       openUrl(url);

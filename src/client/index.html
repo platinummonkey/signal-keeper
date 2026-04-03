@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR Auto-Reviewer</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<div id="topbar">
+  <h1>⚡ PR Auto-Reviewer</h1>
+  <div class="sep"></div>
+  <span id="last-poll"></span>
+  <span id="status-dot"></span>
+  <span id="status-label">Connecting…</span>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="filters">
+      <button class="filter-btn active" data-f="all">All</button>
+      <button class="filter-btn" data-f="auto-merge">✓ Auto-merge</button>
+      <button class="filter-btn" data-f="needs-attention">👀 Attention</button>
+      <button class="filter-btn" data-f="needs-changes">⚠ Changes</button>
+      <button class="filter-btn" data-f="block">✗ Block</button>
+      <select id="repo-select" title="Filter by repository"></select>
+    </div>
+    <div id="pr-list"><div class="empty-state">Loading…</div></div>
+  </div>
+
+  <div id="detail">
+    <div id="detail-empty">Select a PR to view details</div>
+    <div id="detail-content">
+      <div id="detail-header">
+        <h2 id="dh-title"></h2>
+        <div id="detail-meta"></div>
+      </div>
+      <div id="detail-scroll"></div>
+      <div id="action-bar"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-overlay">
+  <div class="modal">
+    <h3 id="m-title"></h3>
+    <p id="m-desc"></p>
+    <textarea id="m-input" rows="3"></textarea>
+    <div class="modal-footer">
+      <button class="btn" id="m-cancel">Cancel</button>
+      <button class="btn btn-primary" id="m-ok">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script type="module" src="./main.ts"></script>
+</body>
+</html>
