@@ -37,6 +37,7 @@ export interface Review {
   cost_usd: number | null;
   model: string | null;
   stage: ReviewStage;
+  session_id: string | null;
   created_at: string;
 }
 
@@ -135,11 +136,12 @@ export function upsertReview(data: {
   cost_usd?: number;
   model?: string;
   stage?: ReviewStage;
+  session_id?: string;
 }): Review {
   const db = getDb();
   const row = db.prepare(`
-    INSERT INTO reviews (pr_id, head_sha, category, summary, notes, suggested_changes, confidence, cost_usd, model, stage)
-    VALUES (@pr_id, @head_sha, @category, @summary, @notes, @suggested_changes, @confidence, @cost_usd, @model, @stage)
+    INSERT INTO reviews (pr_id, head_sha, category, summary, notes, suggested_changes, confidence, cost_usd, model, stage, session_id)
+    VALUES (@pr_id, @head_sha, @category, @summary, @notes, @suggested_changes, @confidence, @cost_usd, @model, @stage, @session_id)
     ON CONFLICT(pr_id, head_sha, stage) DO UPDATE SET
       category = excluded.category,
       summary = excluded.summary,
@@ -148,10 +150,11 @@ export function upsertReview(data: {
       confidence = excluded.confidence,
       cost_usd = excluded.cost_usd,
       model = excluded.model,
-      stage = excluded.stage
+      session_id = excluded.session_id
     RETURNING *
   `).get({
     stage: 'full',
+    session_id: null,
     ...data,
     notes: JSON.stringify(data.notes),
     suggested_changes: JSON.stringify(data.suggested_changes),
@@ -190,13 +193,15 @@ export function insertReview(data: {
   cost_usd?: number;
   model?: string;
   stage: ReviewStage;
+  session_id?: string;
 }): Review {
   const db = getDb();
   const row = db.prepare(`
-    INSERT INTO reviews (pr_id, head_sha, category, summary, notes, suggested_changes, confidence, cost_usd, model, stage)
-    VALUES (@pr_id, @head_sha, @category, @summary, @notes, @suggested_changes, @confidence, @cost_usd, @model, @stage)
+    INSERT INTO reviews (pr_id, head_sha, category, summary, notes, suggested_changes, confidence, cost_usd, model, stage, session_id)
+    VALUES (@pr_id, @head_sha, @category, @summary, @notes, @suggested_changes, @confidence, @cost_usd, @model, @stage, @session_id)
     RETURNING *
   `).get({
+    session_id: null,
     ...data,
     notes: JSON.stringify(data.notes),
     suggested_changes: JSON.stringify(data.suggested_changes),

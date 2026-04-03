@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   cost_usd REAL,
   model TEXT,
   stage TEXT NOT NULL DEFAULT 'full',
+  session_id TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(pr_id, head_sha, stage)
 );
@@ -75,6 +76,7 @@ const MIGRATIONS_V2 = [
   // Re-create reviews unique index to include stage (allows initial+final per sha)
   `DROP INDEX IF EXISTS reviews_pr_id_head_sha_unique`,
   `CREATE UNIQUE INDEX IF NOT EXISTS reviews_pr_id_head_sha_stage ON reviews(pr_id, head_sha, stage)`,
+  `ALTER TABLE reviews ADD COLUMN session_id TEXT`,
 ];
 
 let _db: Database.Database | null = null;

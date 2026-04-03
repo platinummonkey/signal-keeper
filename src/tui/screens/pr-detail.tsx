@@ -18,6 +18,7 @@ interface PRDetailScreenProps {
   onReReview: (pr: PRWithReview, customPrompt?: string) => void;
   onAutofix: (pr: PRWithReview) => void;
   onApproveCI: (pr: PRWithReview) => void;
+  onGenerateComment: (pr: PRWithReview) => void;
 }
 
 export function PRDetailScreen({
@@ -29,6 +30,7 @@ export function PRDetailScreen({
   onReReview,
   onAutofix,
   onApproveCI,
+  onGenerateComment,
 }: PRDetailScreenProps) {
   const { review, decision } = usePRDetail(pr);
   const [statusMsg, setStatusMsg] = useState<string | undefined>();
@@ -41,6 +43,7 @@ export function PRDetailScreen({
     if (input === 'p') { onReReview(pr); return; }  // open custom prompt
     if (input === 'r') { onReReview(pr, ''); return; } // re-review with no extra instruction
     if (input === 'o') { openUrl(pr.url); setStatusMsg(`Opened ${pr.url}`); return; }
+    if (input === 'g') { onGenerateComment(pr); return; }
     if (input === 'f') { onAutofix(pr); return; }
     if (input === 'a' && pr.is_external && pr.external_stage === 'awaiting_approval') {
       onApproveCI(pr); return;
@@ -98,6 +101,7 @@ export function PRDetailScreen({
         { key: 'x', label: 'close' },
         { key: 'r', label: 're-review' },
         { key: 'p', label: 'custom prompt' },
+        { key: 'g', label: 'generate comment' },
         { key: 'o', label: 'open in browser' },
         ...(pr.is_external && pr.external_stage === 'awaiting_approval'
           ? [{ key: 'a', label: 'approve CI' }]

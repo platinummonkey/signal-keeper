@@ -5,8 +5,10 @@ import { PRDetailScreen } from './screens/pr-detail.js';
 import { CustomPromptScreen } from './screens/custom-prompt.js';
 import { ConfirmScreen } from './screens/confirm.js';
 import { CommentInputScreen } from './screens/comment-input.js';
+import { GenerateCommentScreen } from './screens/generate-comment.js';
 import { actionMerge, actionClose, actionComment } from '../github/pr-actions.js';
-import { reviewPR } from '../review/engine.js';
+import { reviewPR, generateCommentFromReview } from '../review/engine.js';
+import { getLatestReview } from '../state/models.js';
 import { runAutofix } from '../autofix/index.js';
 import { approveExternalCI } from '../daemon.js';
 import { logger } from '../utils/logger.js';
@@ -17,6 +19,7 @@ type Screen =
   | 'list'
   | 'detail'
   | 'custom-prompt'
+  | 'generate-comment'
   | 'confirm-merge'
   | 'confirm-close'
   | 'comment-input';
@@ -135,6 +138,25 @@ function App({ config }: AppProps) {
       });
   }
 
+  function handleGenerateComment(pr: PRWithReview) {
+    setSelectedPR(pr);
+    setScreen('generate-comment');
+  }
+
+  async function executeGenerateComment(pr: PRWithReview, instruction: string) {
+    setScreen('detail');
+    setStatusMessage('Generating comment…');
+    try {
+      const effectiveInstruction = instruction || 'Summarise the review findings for the author, focusing on what needs to change and why.';
+      const result = await generateCommentFromReview(pr.id, effectiveInstruction, config);
+      // Post the generated comment directly and show a preview in the status bar
+      await actionComment(pr.id, pr.owner, pr.repo, pr.number, result.body);
+      setStatusMessage(`✓ Comment posted on ${pr.owner}/${pr.repo}#${pr.number}`);
+    } catch (err) {
+      setStatusMessage(`Generate comment failed: ${(err as Error).message}`);
+    }
+  }
+
   // --- Screen rendering ---
 
   let content: React.ReactNode;
@@ -173,6 +195,16 @@ function App({ config }: AppProps) {
         onCancel={backToDetail}
       />
     );
+  } else if (screen === 'generate-comment' && selectedPR) {
+    const review = getLatestReview(selectedPR.id);
+    content = (
+      <GenerateCommentScreen
+        prLabel={`${selectedPR.owner}/${selectedPR.repo}#${selectedPR.number}`}
+        hasSession={!!review?.session_id}
+        onSubmit={(instruction) => executeGenerateComment(selectedPR, instruction)}
+        onCancel={backToDetail}
+      />
+    );
   } else if (screen === 'detail' && selectedPR) {
     content = (
       <PRDetailScreen
@@ -185,6 +217,7 @@ function App({ config }: AppProps) {
         onReReview={handleReReview}
         onAutofix={handleAutofix}
         onApproveCI={handleApproveCI}
+        onGenerateComment={handleGenerateComment}
       />
     );
   } else {
