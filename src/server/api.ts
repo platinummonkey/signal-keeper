@@ -24,6 +24,34 @@ export function createApiRouter(config: ConfigOutput): Router {
     }
   });
 
+  // CI status — fetched live (registered before :id to be explicit)
+  router.get('/prs/:id/ci', async (req: Request, res: Response) => {
+    try {
+      const pr = requirePR(req, res); if (!pr) return;
+      const [status, runs] = await Promise.all([
+        getCIStatus(pr.owner, pr.repo, pr.head_sha),
+        getWorkflowRunsForCommit(pr.owner, pr.repo, pr.head_sha),
+      ]);
+      res.json({ status, runs });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // Diff — fetched live
+  router.get('/prs/:id/diff', async (req: Request, res: Response) => {
+    try {
+      const pr = requirePR(req, res); if (!pr) return;
+      const [diff, files] = await Promise.all([
+        fetchPRDiff(pr.owner, pr.repo, pr.number),
+        fetchPRFiles(pr.owner, pr.repo, pr.number),
+      ]);
+      res.json({ diff, files });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
   // Single PR detail
   router.get('/prs/:id', (req: Request, res: Response) => {
     try {
@@ -126,33 +154,6 @@ export function createApiRouter(config: ConfigOutput): Router {
     }
   });
 
-  // CI status — fetched live from GitHub
-  router.get('/prs/:id/ci', async (req: Request, res: Response) => {
-    try {
-      const pr = requirePR(req, res); if (!pr) return;
-      const [status, runs] = await Promise.all([
-        getCIStatus(pr.owner, pr.repo, pr.head_sha),
-        getWorkflowRunsForCommit(pr.owner, pr.repo, pr.head_sha),
-      ]);
-      res.json({ status, runs });
-    } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
-    }
-  });
-
-  // Diff — fetched live from GitHub, not stored in DB
-  router.get('/prs/:id/diff', async (req: Request, res: Response) => {
-    try {
-      const pr = requirePR(req, res); if (!pr) return;
-      const [diff, files] = await Promise.all([
-        fetchPRDiff(pr.owner, pr.repo, pr.number),
-        fetchPRFiles(pr.owner, pr.repo, pr.number),
-      ]);
-      res.json({ diff, files });
-    } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
-    }
-  });
 
   return router;
 }

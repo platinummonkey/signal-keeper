@@ -75,6 +75,7 @@ let curFilter: string = 'all';
 let curRepo: string = 'all';
 let diffLoaded = false;
 let ciLoaded = false;
+let ciPollTimer: ReturnType<typeof setInterval> | null = null;
 
 // ── PR List ───────────────────────────────────────────────────────
 async function fetchPRs(): Promise<void> {
@@ -136,6 +137,7 @@ function openPR(id: number): void {
   selId = id;
   diffLoaded = false;
   ciLoaded = false;
+  stopCIPoll();
   renderList();
   const pr = prs.find(p => p.id === id);
   if (!pr) return;
@@ -230,6 +232,10 @@ function renderBody(pr: PR): void {
   $('diff-toggle').addEventListener('click', () => toggleDiff(pr));
 }
 
+function stopCIPoll(): void {
+  if (ciPollTimer) { clearInterval(ciPollTimer); ciPollTimer = null; }
+}
+
 // ── CI Status ─────────────────────────────────────────────────────
 const CI_ICON: Record<string, string> = {
   pending: '⟳', in_progress: '⟳', queued: '⏳', waiting: '⏳', requested: '⏳',
@@ -265,33 +271,41 @@ async function loadCI(pr: PR): Promise<void> {
     const { status, runs } = await api.getCI(pr.id);
 
     // Update inline badge
-    const badge = ciStatusBadge(status);
     const inline = $('ci-status-inline');
-    if (inline) inline.innerHTML = badge;
+    if (inline) inline.innerHTML = ciStatusBadge(status);
 
     const body = $('ci-body');
     if (!runs.length) {
       body.innerHTML = '<div class="diff-loading" style="color:var(--text-dim)">No workflow runs found.</div>';
-      return;
+    } else {
+      const rows = runs.map(r => {
+        const icon  = r.conclusion ? (CONCLUSION_ICON[r.conclusion] ?? '?') : (CI_ICON[r.status ?? ''] ?? '⟳');
+        const style = r.conclusion ? (CONCLUSION_CLASS[r.conclusion] ?? '') : 'color:var(--yellow)';
+        const label = r.conclusion
+          ? `<span style="${style}">${esc(r.conclusion)}</span>`
+          : `<span style="color:var(--yellow)">${esc(r.status ?? 'unknown')}</span>`;
+        const runUrl = `https://github.com/${pr.owner}/${pr.repo}/actions/runs/${r.id}`;
+        return `<div class="ci-run">
+          <span class="ci-run-icon" style="${style}">${icon}</span>
+          <span class="ci-run-name"><a href="${esc(runUrl)}" target="_blank" rel="noopener noreferrer">${esc(r.name ?? 'Workflow')}</a></span>
+          <span class="ci-run-status">${label}</span>
+        </div>`;
+      }).join('');
+      body.innerHTML = `<div class="ci-runs" style="padding:10px 14px">${rows}</div>`;
     }
 
-    const rows = runs.map(r => {
-      const icon  = r.conclusion ? (CONCLUSION_ICON[r.conclusion] ?? '?') : (CI_ICON[r.status ?? ''] ?? '⟳');
-      const style = r.conclusion ? (CONCLUSION_CLASS[r.conclusion] ?? '') : 'color:var(--yellow)';
-      const label = r.conclusion
-        ? `<span style="${style}">${esc(r.conclusion)}</span>`
-        : `<span style="color:var(--yellow)">${esc(r.status ?? 'unknown')}</span>`;
-      const runUrl = `https://github.com/${pr.owner}/${pr.repo}/actions/runs/${r.id}`;
-      return `<div class="ci-run">
-        <span class="ci-run-icon" style="${style}">${icon}</span>
-        <span class="ci-run-name"><a href="${esc(runUrl)}" target="_blank" rel="noopener noreferrer">${esc(r.name ?? 'Workflow')}</a></span>
-        <span class="ci-run-status">${label}</span>
-      </div>`;
-    }).join('');
-    body.innerHTML = `<div class="ci-runs" style="padding:10px 14px">${rows}</div>`;
+    // Auto-poll while pending; stop once everything has passed
+    if (status === 'pending') {
+      if (!ciPollTimer) {
+        ciPollTimer = setInterval(() => void loadCI(pr), 15_000);
+      }
+    } else {
+      stopCIPoll();
+    }
   } catch (e) {
     $('ci-body').innerHTML = `<div class="diff-loading" style="color:var(--red)">Failed: ${esc((e as Error).message)}</div>`;
     ciLoaded = false;
+    stopCIPoll();
   }
 }
 
@@ -439,6 +453,7 @@ async function handleAction(e: Event, pr: PR, act: string): Promise<void> {
 
 function clearDetail(): void {
   selId = null;
+  stopCIPoll();
   $('detail-empty').style.display = '';
   $('detail-content').style.display = 'none';
 }
