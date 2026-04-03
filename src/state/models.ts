@@ -138,7 +138,7 @@ export function upsertReview(data: {
   const row = db.prepare(`
     INSERT INTO reviews (pr_id, head_sha, category, summary, notes, suggested_changes, confidence, cost_usd, model, stage)
     VALUES (@pr_id, @head_sha, @category, @summary, @notes, @suggested_changes, @confidence, @cost_usd, @model, @stage)
-    ON CONFLICT(pr_id, head_sha) DO UPDATE SET
+    ON CONFLICT(pr_id, head_sha, stage) DO UPDATE SET
       category = excluded.category,
       summary = excluded.summary,
       notes = excluded.notes,
@@ -215,7 +215,7 @@ export function recordDecision(data: { pr_id: number; action: DecisionAction; no
 
 export function getLatestDecision(prId: number): Decision | undefined {
   return getDb().prepare(
-    'SELECT * FROM decisions WHERE pr_id = ? ORDER BY created_at DESC LIMIT 1',
+    'SELECT * FROM decisions WHERE pr_id = ? ORDER BY id DESC LIMIT 1',
   ).get(prId) as Decision | undefined;
 }
 

@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS prs (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   discovered_at TEXT NOT NULL DEFAULT (datetime('now')),
+  is_external INTEGER NOT NULL DEFAULT 0,
+  external_stage TEXT,
   UNIQUE(owner, repo, number)
 );
 
@@ -31,8 +33,9 @@ CREATE TABLE IF NOT EXISTS reviews (
   confidence REAL NOT NULL DEFAULT 0,
   cost_usd REAL,
   model TEXT,
+  stage TEXT NOT NULL DEFAULT 'full',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(pr_id, head_sha)
+  UNIQUE(pr_id, head_sha, stage)
 );
 
 CREATE TABLE IF NOT EXISTS decisions (
@@ -67,6 +70,9 @@ const MIGRATIONS_V2 = [
   `ALTER TABLE prs ADD COLUMN is_external INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE prs ADD COLUMN external_stage TEXT`,
   `ALTER TABLE reviews ADD COLUMN stage TEXT NOT NULL DEFAULT 'full'`,
+  // Re-create reviews unique index to include stage (allows initial+final per sha)
+  `DROP INDEX IF EXISTS reviews_pr_id_head_sha_unique`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS reviews_pr_id_head_sha_stage ON reviews(pr_id, head_sha, stage)`,
 ];
 
 let _db: Database.Database | null = null;
