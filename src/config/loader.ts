@@ -36,6 +36,9 @@ workDir: ~/.pr-auto-reviewer/repos
 # External PRs get an initial review pass, then prompt you to approve CI,
 # then a final review pass after CI completes.
 # trustedOrgs: [DataDog, datadog-labs, ddoghq]
+
+# Web UI server port
+port: 7777
 `;
 
 function expandHome(p: string): string {

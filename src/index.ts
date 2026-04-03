@@ -6,21 +6,23 @@ import { loadConfig, addTarget } from './config/loader.js';
 import { initDb, getDb } from './state/database.js';
 import { initOctokit } from './github/client.js';
 import { startDaemon, stopDaemon } from './daemon.js';
+import { startServer } from './server/server.js';
+import { openUrl } from './utils/open-url.js';
 
 program
   .name('pr-auto-reviewer')
-  .description('AI-powered GitHub PR reviewer with terminal UI')
+  .description('AI-powered GitHub PR reviewer with browser UI')
   .version('0.1.0');
 
 program
   .command('start')
-  .description('Start the polling daemon')
+  .description('Start the daemon and open the browser UI')
   .option('-c, --config <path>', 'Config file path')
-  .option('--pretty', 'Pretty-print log output', false)
-  .option('--log-level <level>', 'Log level', 'info')
+  .option('--log-level <level>', 'Log level (default: info)', 'info')
+  .option('--no-open', 'Do not automatically open the browser')
   .action(async (opts) => {
     mkdirSync(paths.baseDir, { recursive: true });
-    initLogger({ pretty: opts.pretty, level: opts.logLevel });
+    initLogger({ pretty: false, level: opts.logLevel });
 
     let config;
     try {
@@ -32,9 +34,8 @@ program
 
     initDb(paths.dbFile);
 
-    let octokit;
     try {
-      octokit = await initOctokit(config.github.tokenCommand);
+      await initOctokit(config.github.tokenCommand);
     } catch (err) {
       console.error(`GitHub auth failed: ${(err as Error).message}`);
       process.exit(1);
@@ -47,44 +48,40 @@ program
       try { getDb().close(); } catch {}
       process.exit(0);
     }
-    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGINT',  () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('uncaughtException', (err) => {
       logger.error({ err }, 'Uncaught exception');
       shutdown('uncaughtException');
     });
 
-    await startDaemon(config);
+    // Start the web server first, then the daemon
+    try {
+      await startServer(config);
+    } catch (err) {
+      console.error(`Server failed to start: ${(err as Error).message}`);
+      process.exit(1);
+    }
+
+    const url = `http://localhost:${config.port}`;
+    console.log(`\n  PR Auto-Reviewer running at ${url}\n`);
+
+    if (opts.open !== false) {
+      openUrl(url);
+    }
+
+    // Daemon runs in the same process
+    startDaemon(config).catch((err) => {
+      logger.error({ err }, 'Daemon error');
+    });
 
     // Keep process alive
     await new Promise(() => {});
   });
 
 program
-  .command('tui')
-  .description('Open the terminal UI')
-  .option('-c, --config <path>', 'Config file path')
-  .action(async (opts) => {
-    mkdirSync(paths.baseDir, { recursive: true });
-    initLogger({ pretty: false, level: 'warn' });
-
-    let config;
-    try {
-      config = loadConfig(opts.config);
-    } catch (err) {
-      console.error((err as Error).message);
-      process.exit(1);
-    }
-
-    initDb(paths.dbFile);
-
-    const { renderApp } = await import('./tui/app.js');
-    renderApp(config);
-  });
-
-program
   .command('review <url>')
-  .description('Manually review a PR by URL')
+  .description('Manually review a PR by URL (prints JSON)')
   .option('-c, --config <path>', 'Config file path')
   .action(async (url: string, opts) => {
     mkdirSync(paths.baseDir, { recursive: true });
@@ -101,7 +98,6 @@ program
     initDb(paths.dbFile);
     await initOctokit(config.github.tokenCommand);
 
-    // Parse owner/repo/number from URL
     const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
     if (!match) {
       console.error('Invalid GitHub PR URL');
@@ -114,9 +110,8 @@ program
     console.log(JSON.stringify(result, null, 2));
   });
 
-const add = program
-  .command('add')
-  .description('Add a target to your config');
+// ── add repo / add org ────────────────────────────────────────────
+const add = program.command('add').description('Add a target to your config');
 
 add
   .command('repo <owner/repo>')
@@ -124,9 +119,9 @@ add
   .option('-f, --filter <filter>', 'Filter: all | assigned | author', 'all')
   .option('-c, --config <path>', 'Config file path')
   .action((repo: string, opts) => {
-    const validFilters = ['all', 'assigned', 'author'];
-    if (!validFilters.includes(opts.filter)) {
-      console.error(`Invalid filter "${opts.filter}". Choose from: ${validFilters.join(', ')}`);
+    const valid = ['all', 'assigned', 'author'];
+    if (!valid.includes(opts.filter)) {
+      console.error(`Invalid filter "${opts.filter}". Choose from: ${valid.join(', ')}`);
       process.exit(1);
     }
     if (!/^[^/]+\/[^/]+$/.test(repo)) {
@@ -149,9 +144,9 @@ add
   .option('-t, --team <slug>', 'GitHub team slug (required when filter=team)')
   .option('-c, --config <path>', 'Config file path')
   .action((org: string, opts) => {
-    const validFilters = ['all', 'team', 'assigned', 'author'];
-    if (!validFilters.includes(opts.filter)) {
-      console.error(`Invalid filter "${opts.filter}". Choose from: ${validFilters.join(', ')}`);
+    const valid = ['all', 'team', 'assigned', 'author'];
+    if (!valid.includes(opts.filter)) {
+      console.error(`Invalid filter "${opts.filter}". Choose from: ${valid.join(', ')}`);
       process.exit(1);
     }
     if (opts.filter === 'team' && !opts.team) {

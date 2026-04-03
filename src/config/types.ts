@@ -30,4 +30,5 @@ export interface Config {
   reviewModel: string;
   workDir: string;
   trustedOrgs: string[];
+  port: number;
 }

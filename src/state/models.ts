@@ -4,6 +4,7 @@ export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' 
 export type DecisionAction = 'merged' | 'commented' | 'closed' | 'dismissed' | 're-reviewed';
 export type AutofixStatus = 'pending' | 'cloning' | 'running' | 'pushing' | 'done' | 'failed';
 export type ExternalStage = 'awaiting_approval' | 'ci_pending' | 'complete';
+export type PRWithReview = PR & { latest_review?: Review };
 export type ReviewStage = 'full' | 'initial' | 'final';
 
 export interface PR {

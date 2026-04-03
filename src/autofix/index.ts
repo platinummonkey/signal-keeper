@@ -4,7 +4,7 @@ import { runClaudeFix } from './fix-runner.js';
 import { createAutofixPR } from './pr-creator.js';
 import { createAutofixJob, updateAutofixJob, getLatestReview } from '../state/models.js';
 import { logger } from '../utils/logger.js';
-import type { PRWithReview } from '../tui/hooks/use-pr-list.js';
+import type { PRWithReview } from '../state/models.js';
 import type { ConfigOutput } from '../config/schema.js';
 
 export interface AutofixResult {

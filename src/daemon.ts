@@ -1,4 +1,5 @@
 import { logger } from './utils/logger.js';
+import { eventBus } from './server/event-bus.js';
 import { pollAllTargets } from './github/poller.js';
 import {
   upsertPR, markPRClosed, listOpenPRs, getLatestReview,
@@ -80,6 +81,7 @@ async function checkPendingApprovals(): Promise<void> {
         setPendingApproval(pr.id, needs);
         if (needs) {
           logger.info({ owner: pr.owner, repo: pr.repo, number: pr.number }, 'PR has action_required workflow runs');
+          eventBus.emit('app', { type: 'approval:needed', prId: pr.id, owner: pr.owner, repo: pr.repo, number: pr.number });
         }
       }
     } catch (err) {
@@ -193,6 +195,7 @@ async function pollCycle(): Promise<void> {
                 title: pr.title, category: review.category, summary: review.summary,
                 url: pr.url, notificationsConfig: _config.notifications,
               });
+              eventBus.emit('app', { type: 'review:complete', prId: pr.id, owner: pr.owner, repo: pr.repo, number: pr.number, category: review.category });
             }
           } catch (err) {
             logger.error({ owner: pr.owner, repo: pr.repo, number: pr.number, err }, 'Review failed');
@@ -206,6 +209,7 @@ async function pollCycle(): Promise<void> {
     state.lastPollAt = new Date();
     state.pollCount++;
     logger.info({ durationMs: Date.now() - startMs }, 'Poll cycle complete');
+    eventBus.emit('app', { type: 'poll:complete', pollCount: state.pollCount, prCount: discoveredKeys.size });
   } catch (err) {
     logger.error({ err }, 'Poll cycle failed');
   }
