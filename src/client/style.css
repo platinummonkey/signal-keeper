@@ -93,8 +93,7 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
 .tab-btn.active { color:var(--text); border-bottom-color:var(--accent); font-weight:500; }
 .tab-badge { font-size:11px; padding:1px 6px; border-radius:20px; font-weight:600; }
 
-#tab-content { flex:1; overflow-y:auto; padding:16px 20px; }
-#tab-content > * + * { margin-top:14px; }
+#tab-content { flex:1; overflow-y:auto; padding:16px 20px; min-height:0; }
 #tab-content::-webkit-scrollbar { width:5px; }
 #tab-content::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
 .tab-empty { color:var(--text-dim); font-size:13px; padding:8px 0; }
@@ -202,12 +201,19 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
 .ci-passed  { background:rgba(63,185,80,.15);  color:var(--green);  border:1px solid rgba(63,185,80,.3); }
 .ci-failed  { background:rgba(248,81,73,.15);  color:var(--red);    border:1px solid rgba(248,81,73,.3); }
 .ci-noruns  { background:var(--bg3); color:var(--text-dim); border:1px solid var(--border); }
-.ci-runs { display:flex; flex-direction:column; gap:4px; margin-top:10px; }
-.ci-run { display:flex; align-items:center; gap:8px; font-size:12px;
-          padding:5px 8px; border-radius:var(--radius); background:var(--bg); }
-.ci-run-icon { flex-shrink:0; font-size:14px; }
-.ci-run-name { flex:1; color:var(--text); font-family:var(--font-mono); }
-.ci-run-status { color:var(--text-dim); }
+.ci-runs { display:flex; flex-direction:column; gap:10px; }
+.ci-run-group { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.ci-run-header { display:flex; align-items:center; gap:8px; padding:8px 12px;
+                 border-bottom:1px solid var(--border); font-size:13px; font-weight:500; }
+.ci-run-header a { color:var(--text); text-decoration:none; }
+.ci-run-header a:hover { text-decoration:underline; }
+.ci-jobs { display:flex; flex-direction:column; }
+.ci-job { display:flex; align-items:center; gap:8px; padding:6px 12px 6px 28px;
+          font-size:12px; border-top:1px solid var(--border); }
+.ci-job:first-child { border-top:none; }
+.ci-job-icon { flex-shrink:0; font-size:13px; width:14px; text-align:center; }
+.ci-job-name { flex:1; color:var(--text-dim); font-family:var(--font-mono); }
+.ci-job-status { font-size:11px; }
 .ci-refresh { background:none; border:none; color:var(--accent); cursor:pointer;
               font-size:12px; padding:2px 6px; border-radius:4px; margin-left:6px; }
 .ci-refresh:hover { background:rgba(56,139,253,.1); }

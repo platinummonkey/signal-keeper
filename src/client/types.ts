@@ -52,11 +52,19 @@ export interface PR {
 
 export type CIStatus = 'pending' | 'passed' | 'failed' | 'no_runs';
 
+export interface WorkflowJob {
+  id: number;
+  name: string;
+  status: string | null;
+  conclusion: string | null;
+}
+
 export interface WorkflowRun {
   id: number;
   name: string | null;
   status: string | null;
   conclusion: string | null;
+  jobs: WorkflowJob[];
 }
 
 export interface CIResponse {

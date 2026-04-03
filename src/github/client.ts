@@ -182,11 +182,19 @@ export async function isExternalContributor(username: string, trustedOrgs: strin
 
 // --- Workflow runs ---
 
+export interface WorkflowJob {
+  id: number;
+  name: string;
+  status: string | null;
+  conclusion: string | null;
+}
+
 export interface WorkflowRun {
   id: number;
   status: string | null;
   conclusion: string | null;
   name: string | null;
+  jobs?: WorkflowJob[];
 }
 
 export type CIStatus = 'pending' | 'passed' | 'failed' | 'no_runs';
@@ -220,6 +228,27 @@ export async function getWorkflowRunsForCommit(
 export async function approveWorkflowRun(owner: string, repo: string, runId: number): Promise<void> {
   await getOctokit().actions.approveWorkflowRun({ owner, repo, run_id: runId });
   logger.info({ owner, repo, runId }, 'Approved workflow run');
+}
+
+export async function getWorkflowRunJobs(
+  owner: string,
+  repo: string,
+  runId: number,
+): Promise<WorkflowJob[]> {
+  try {
+    const { data } = await getOctokit().actions.listJobsForWorkflowRun({
+      owner, repo, run_id: runId, per_page: 100,
+    });
+    return data.jobs.map((j) => ({
+      id: j.id,
+      name: j.name,
+      status: j.status,
+      conclusion: j.conclusion ?? null,
+    }));
+  } catch (err) {
+    logger.debug({ owner, repo, runId, err }, 'Failed to fetch jobs for run');
+    return [];
+  }
 }
 
 async function getActionRequiredRuns(

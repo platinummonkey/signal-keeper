@@ -5,7 +5,7 @@ import {
 } from '../state/models.js';
 import { actionMerge, actionComment, actionClose } from '../github/pr-actions.js';
 import { reviewPR, generateCommentFromReview } from '../review/engine.js';
-import { fetchPRDiff, fetchPRFiles, getCIStatus, getWorkflowRunsForCommit } from '../github/client.js';
+import { fetchPRDiff, fetchPRFiles, getCIStatus, getWorkflowRunsForCommit, getWorkflowRunJobs } from '../github/client.js';
 import { approvePendingWorkflows } from '../daemon.js';
 import { runAutofix } from '../autofix/index.js';
 import { logger } from '../utils/logger.js';
@@ -32,7 +32,14 @@ export function createApiRouter(config: ConfigOutput): Router {
         getCIStatus(pr.owner, pr.repo, pr.head_sha),
         getWorkflowRunsForCommit(pr.owner, pr.repo, pr.head_sha),
       ]);
-      res.json({ status, runs });
+      // Fetch jobs for each run in parallel
+      const runsWithJobs = await Promise.all(
+        runs.map(async (run) => ({
+          ...run,
+          jobs: await getWorkflowRunJobs(pr.owner, pr.repo, run.id),
+        })),
+      );
+      res.json({ status, runs: runsWithJobs });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }

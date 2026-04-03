@@ -224,17 +224,17 @@ function reviewTabHTML(pr: PR): string {
       <div class="chg-desc">${esc(sc.description)}</div>
       ${sc.suggestion ? `<div class="chg-sug">${esc(sc.suggestion)}</div>` : ''}
     </div>`).join('');
-  return `<div class="section"><div class="sec-body">
+  return `
     <div class="rev-top">${catBadge(rev.category)}<span class="rev-conf">confidence: ${conf}%${cost}</span></div>
-    <div class="rev-summary">${esc(rev.summary)}</div>
-    ${notes ? `<ul class="notes">${notes}</ul>` : ''}
-    ${changes}
-  </div></div>`;
+    <div class="rev-summary" style="margin-top:10px">${esc(rev.summary)}</div>
+    ${notes ? `<ul class="notes" style="margin-top:12px">${notes}</ul>` : ''}
+    ${changes ? `<div style="margin-top:14px">${changes}</div>` : ''}
+  `;
 }
 
 function descriptionTabHTML(pr: PR): string {
   if (!pr.body?.trim()) return '<div class="tab-empty">No description provided.</div>';
-  return `<div class="section"><div class="sec-body"><div class="desc-text">${esc(pr.body)}</div></div></div>`;
+  return `<div class="desc-text">${esc(pr.body)}</div>`;
 }
 
 function stopCIPoll(): void {
@@ -257,20 +257,34 @@ const CONCLUSION_STYLE: Record<string, string> = {
 function ciRunsHTML(pr: PR, status: string, runs: import('./types.ts').WorkflowRun[]): string {
   const badge = ciStatusBadge(status);
   if (!runs.length) return `${badge}<p class="tab-empty" style="margin-top:10px">No workflow runs found.</p>`;
-  const rows = runs.map(r => {
-    const icon  = r.conclusion ? (CONCLUSION_ICON[r.conclusion] ?? '?') : (CI_ICON[r.status ?? ''] ?? '⟳');
-    const style = r.conclusion ? (CONCLUSION_STYLE[r.conclusion] ?? '') : 'color:var(--yellow)';
-    const label = r.conclusion
-      ? `<span style="${style}">${esc(r.conclusion)}</span>`
-      : `<span style="color:var(--yellow)">${esc(r.status ?? 'unknown')}</span>`;
-    const url = `https://github.com/${pr.owner}/${pr.repo}/actions/runs/${r.id}`;
-    return `<div class="ci-run">
-      <span class="ci-run-icon" style="${style}">${icon}</span>
-      <span class="ci-run-name"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(r.name ?? 'Workflow')}</a></span>
-      <span class="ci-run-status">${label}</span>
+
+  const groups = runs.map(r => {
+    const runIcon  = r.conclusion ? (CONCLUSION_ICON[r.conclusion] ?? '?') : (CI_ICON[r.status ?? ''] ?? '⟳');
+    const runStyle = r.conclusion ? (CONCLUSION_STYLE[r.conclusion] ?? '') : 'color:var(--yellow)';
+    const runUrl   = `https://github.com/${pr.owner}/${pr.repo}/actions/runs/${r.id}`;
+
+    const jobRows = (r.jobs ?? []).map(j => {
+      const jIcon  = j.conclusion ? (CONCLUSION_ICON[j.conclusion] ?? '?') : (CI_ICON[j.status ?? ''] ?? '⟳');
+      const jStyle = j.conclusion ? (CONCLUSION_STYLE[j.conclusion] ?? '') : 'color:var(--yellow)';
+      const jLabel = j.conclusion ?? j.status ?? 'unknown';
+      return `<div class="ci-job">
+        <span class="ci-job-icon" style="${jStyle}">${jIcon}</span>
+        <span class="ci-job-name">${esc(j.name)}</span>
+        <span class="ci-job-status" style="${jStyle}">${esc(jLabel)}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="ci-run-group">
+      <div class="ci-run-header">
+        <span style="${runStyle}">${runIcon}</span>
+        <a href="${esc(runUrl)}" target="_blank" rel="noopener noreferrer">${esc(r.name ?? 'Workflow')}</a>
+        <span style="${runStyle};font-size:11px;margin-left:auto">${esc(r.conclusion ?? r.status ?? '')}</span>
+      </div>
+      ${jobRows ? `<div class="ci-jobs">${jobRows}</div>` : ''}
     </div>`;
   }).join('');
-  return `<div style="margin-bottom:10px">${badge}</div><div class="ci-runs">${rows}</div>`;
+
+  return `<div style="margin-bottom:12px">${badge}</div><div class="ci-runs">${groups}</div>`;
 }
 
 function ciStatusBadge(status: string): string {
