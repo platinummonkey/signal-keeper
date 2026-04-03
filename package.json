@@ -7,7 +7,7 @@
     "pr-auto-reviewer": "./dist/index.js"
   },
   "scripts": {
-    "build": "vite build && tsup && chmod +x dist/index.js",
+    "build": "tsup && vite build && chmod +x dist/index.js",
     "build:client": "vite build",
     "build:server": "tsup && chmod +x dist/index.js",
     "dev": "concurrently -n client,server -c cyan,yellow \"vite\" \"tsx watch --clear-screen=false src/index.ts start --dev --no-open\"",
