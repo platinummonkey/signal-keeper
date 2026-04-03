@@ -64,8 +64,7 @@ program
       process.exit(1);
     }
 
-    const uiPort = opts.dev === true ? 5173 : config.port;
-    const url = `http://localhost:${uiPort}`;
+    const url = `http://localhost:${config.port}`;
     console.log(`\n  PR Auto-Reviewer ${opts.dev ? '(dev mode) ' : ''}running at ${url}\n`);
 
     if (opts.open !== false) {
