@@ -3,6 +3,8 @@ import { getDb } from './database.js';
 export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' | 'block';
 export type DecisionAction = 'merged' | 'commented' | 'closed' | 'dismissed' | 're-reviewed';
 export type AutofixStatus = 'pending' | 'cloning' | 'running' | 'pushing' | 'done' | 'failed';
+export type ExternalStage = 'awaiting_approval' | 'ci_pending' | 'complete';
+export type ReviewStage = 'full' | 'initial' | 'final';
 
 export interface PR {
   id: number;
@@ -18,6 +20,8 @@ export interface PR {
   created_at: string;
   updated_at: string;
   discovered_at: string;
+  is_external: number;       // 0 | 1
+  external_stage: ExternalStage | null;
 }
 
 export interface Review {
@@ -31,6 +35,7 @@ export interface Review {
   confidence: number;
   cost_usd: number | null;
   model: string | null;
+  stage: ReviewStage;
   created_at: string;
 }
 
@@ -58,15 +63,27 @@ export interface AutofixJob {
 export function upsertPR(data: Omit<PR, 'id' | 'discovered_at'>): PR {
   const db = getDb();
   return db.prepare(`
-    INSERT INTO prs (owner, repo, number, title, author, head_sha, base_branch, state, url, created_at, updated_at)
-    VALUES (@owner, @repo, @number, @title, @author, @head_sha, @base_branch, @state, @url, @created_at, @updated_at)
+    INSERT INTO prs (owner, repo, number, title, author, head_sha, base_branch, state, url, created_at, updated_at, is_external, external_stage)
+    VALUES (@owner, @repo, @number, @title, @author, @head_sha, @base_branch, @state, @url, @created_at, @updated_at, @is_external, @external_stage)
     ON CONFLICT(owner, repo, number) DO UPDATE SET
       title = excluded.title,
       head_sha = excluded.head_sha,
       state = excluded.state,
-      updated_at = excluded.updated_at
+      updated_at = excluded.updated_at,
+      is_external = excluded.is_external
+      -- external_stage is intentionally NOT updated here; use setExternalStage()
     RETURNING *
-  `).get(data) as PR;
+  `).get(Object.assign({ is_external: 0, external_stage: null }, data)) as PR;
+}
+
+export function setExternalStage(prId: number, stage: ExternalStage | null): void {
+  getDb().prepare('UPDATE prs SET external_stage = ? WHERE id = ?').run(stage, prId);
+}
+
+export function listExternalPRsAwaitingCi(): PR[] {
+  return getDb().prepare(
+    "SELECT * FROM prs WHERE state = 'open' AND is_external = 1 AND external_stage = 'ci_pending'",
+  ).all() as PR[];
 }
 
 export function getPR(owner: string, repo: string, number: number): PR | undefined {
@@ -115,11 +132,12 @@ export function upsertReview(data: {
   confidence: number;
   cost_usd?: number;
   model?: string;
+  stage?: ReviewStage;
 }): Review {
   const db = getDb();
   const row = db.prepare(`
-    INSERT INTO reviews (pr_id, head_sha, category, summary, notes, suggested_changes, confidence, cost_usd, model)
-    VALUES (@pr_id, @head_sha, @category, @summary, @notes, @suggested_changes, @confidence, @cost_usd, @model)
+    INSERT INTO reviews (pr_id, head_sha, category, summary, notes, suggested_changes, confidence, cost_usd, model, stage)
+    VALUES (@pr_id, @head_sha, @category, @summary, @notes, @suggested_changes, @confidence, @cost_usd, @model, @stage)
     ON CONFLICT(pr_id, head_sha) DO UPDATE SET
       category = excluded.category,
       summary = excluded.summary,
@@ -127,7 +145,54 @@ export function upsertReview(data: {
       suggested_changes = excluded.suggested_changes,
       confidence = excluded.confidence,
       cost_usd = excluded.cost_usd,
-      model = excluded.model
+      model = excluded.model,
+      stage = excluded.stage
+    RETURNING *
+  `).get({
+    stage: 'full',
+    ...data,
+    notes: JSON.stringify(data.notes),
+    suggested_changes: JSON.stringify(data.suggested_changes),
+    cost_usd: data.cost_usd ?? null,
+    model: data.model ?? null,
+  }) as Review & { notes: string; suggested_changes: string };
+  return parseReviewRow(row);
+}
+
+function parseReviewRow(row: Review & { notes: string; suggested_changes: string }): Review {
+  return { ...row, notes: JSON.parse(row.notes), suggested_changes: JSON.parse(row.suggested_changes) };
+}
+
+export function getLatestReview(prId: number): Review | undefined {
+  const row = getDb().prepare(
+    'SELECT * FROM reviews WHERE pr_id = ? ORDER BY created_at DESC LIMIT 1',
+  ).get(prId) as (Review & { notes: string; suggested_changes: string }) | undefined;
+  return row ? parseReviewRow(row) : undefined;
+}
+
+export function getLatestReviewByStage(prId: number, stage: ReviewStage): Review | undefined {
+  const row = getDb().prepare(
+    'SELECT * FROM reviews WHERE pr_id = ? AND stage = ? ORDER BY created_at DESC LIMIT 1',
+  ).get(prId, stage) as (Review & { notes: string; suggested_changes: string }) | undefined;
+  return row ? parseReviewRow(row) : undefined;
+}
+
+export function insertReview(data: {
+  pr_id: number;
+  head_sha: string;
+  category: ReviewCategory;
+  summary: string;
+  notes: string[];
+  suggested_changes: Array<{ file: string; description: string; suggestion: string }>;
+  confidence: number;
+  cost_usd?: number;
+  model?: string;
+  stage: ReviewStage;
+}): Review {
+  const db = getDb();
+  const row = db.prepare(`
+    INSERT INTO reviews (pr_id, head_sha, category, summary, notes, suggested_changes, confidence, cost_usd, model, stage)
+    VALUES (@pr_id, @head_sha, @category, @summary, @notes, @suggested_changes, @confidence, @cost_usd, @model, @stage)
     RETURNING *
   `).get({
     ...data,
@@ -136,25 +201,7 @@ export function upsertReview(data: {
     cost_usd: data.cost_usd ?? null,
     model: data.model ?? null,
   }) as Review & { notes: string; suggested_changes: string };
-
-  return {
-    ...row,
-    notes: JSON.parse(row.notes),
-    suggested_changes: JSON.parse(row.suggested_changes),
-  };
-}
-
-export function getLatestReview(prId: number): Review | undefined {
-  const row = getDb().prepare(
-    'SELECT * FROM reviews WHERE pr_id = ? ORDER BY created_at DESC LIMIT 1',
-  ).get(prId) as (Review & { notes: string; suggested_changes: string }) | undefined;
-
-  if (!row) return undefined;
-  return {
-    ...row,
-    notes: JSON.parse(row.notes),
-    suggested_changes: JSON.parse(row.suggested_changes),
-  };
+  return parseReviewRow(row);
 }
 
 // Decision queries

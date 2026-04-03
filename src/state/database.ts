@@ -61,6 +61,14 @@ CREATE INDEX IF NOT EXISTS idx_decisions_pr_id ON decisions(pr_id);
 CREATE INDEX IF NOT EXISTS idx_autofix_jobs_pr_id ON autofix_jobs(pr_id);
 `;
 
+// Additive migrations — ALTER TABLE is idempotent via try/catch because
+// SQLite errors on duplicate column names.
+const MIGRATIONS_V2 = [
+  `ALTER TABLE prs ADD COLUMN is_external INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE prs ADD COLUMN external_stage TEXT`,
+  `ALTER TABLE reviews ADD COLUMN stage TEXT NOT NULL DEFAULT 'full'`,
+];
+
 let _db: Database.Database | null = null;
 
 export function initDb(dbPath: string): Database.Database {
@@ -71,6 +79,10 @@ export function initDb(dbPath: string): Database.Database {
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.exec(MIGRATION_SQL);
+
+  for (const sql of MIGRATIONS_V2) {
+    try { db.exec(sql); } catch { /* column already exists */ }
+  }
 
   _db = db;
   return db;

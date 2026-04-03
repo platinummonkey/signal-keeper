@@ -33,6 +33,7 @@ export const configSchema = z.object({
   maxReviewCostUsd: z.number().positive().default(0.5),
   reviewModel: z.string().default('sonnet'),
   workDir: z.string().default('~/.pr-auto-reviewer/repos'),
+  trustedOrgs: z.array(z.string()).default([]),
 });
 
 export type ConfigInput = z.input<typeof configSchema>;

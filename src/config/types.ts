@@ -29,4 +29,5 @@ export interface Config {
   maxReviewCostUsd: number;
   reviewModel: string;
   workDir: string;
+  trustedOrgs: string[];
 }

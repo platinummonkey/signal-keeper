@@ -139,3 +139,89 @@ export async function closePR(owner: string, repo: string, number: number): Prom
   await getOctokit().pulls.update({ owner, repo, pull_number: number, state: 'closed' });
   logger.info({ owner, repo, number }, 'Closed PR');
 }
+
+// --- Org membership (cached) ---
+
+interface CacheEntry { isMember: boolean; expiresAt: number }
+const _membershipCache = new Map<string, CacheEntry>();
+const MEMBERSHIP_TTL_MS = 5 * 60 * 1000;
+
+export async function isOrgMember(org: string, username: string): Promise<boolean> {
+  const key = `${org}:${username}`;
+  const cached = _membershipCache.get(key);
+  if (cached && Date.now() < cached.expiresAt) return cached.isMember;
+
+  let isMember = false;
+  try {
+    await getOctokit().orgs.checkMembershipForUser({ org, username });
+    isMember = true; // 204 = member; anything else throws
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status;
+    // 404 = not a member or org doesn't exist; both mean non-member for our purposes
+    if (status !== 404) {
+      logger.warn({ org, username, err }, 'Org membership check failed — assuming non-member');
+    }
+    isMember = false;
+  }
+
+  _membershipCache.set(key, { isMember, expiresAt: Date.now() + MEMBERSHIP_TTL_MS });
+  return isMember;
+}
+
+export async function isExternalContributor(username: string, trustedOrgs: string[]): Promise<boolean> {
+  if (trustedOrgs.length === 0) return false;
+  const results = await Promise.all(trustedOrgs.map((org) => isOrgMember(org, username)));
+  return !results.some(Boolean);
+}
+
+// --- Workflow runs ---
+
+export interface WorkflowRun {
+  id: number;
+  status: string | null;
+  conclusion: string | null;
+  name: string | null;
+}
+
+export type CIStatus = 'pending' | 'passed' | 'failed' | 'no_runs';
+
+export async function getWorkflowRunsForCommit(
+  owner: string,
+  repo: string,
+  headSha: string,
+): Promise<WorkflowRun[]> {
+  try {
+    const { data } = await getOctokit().actions.listWorkflowRunsForRepo({
+      owner, repo, head_sha: headSha, per_page: 30,
+    });
+    return data.workflow_runs.map((r) => ({
+      id: r.id,
+      status: r.status,
+      conclusion: r.conclusion ?? null,
+      name: r.name ?? null,
+    }));
+  } catch (err) {
+    logger.warn({ owner, repo, headSha, err }, 'Failed to fetch workflow runs');
+    return [];
+  }
+}
+
+export async function approveWorkflowRun(owner: string, repo: string, runId: number): Promise<void> {
+  await getOctokit().actions.approveWorkflowRun({ owner, repo, run_id: runId });
+  logger.info({ owner, repo, runId }, 'Approved workflow run');
+}
+
+export async function getCIStatus(
+  owner: string,
+  repo: string,
+  headSha: string,
+): Promise<CIStatus> {
+  const runs = await getWorkflowRunsForCommit(owner, repo, headSha);
+  if (runs.length === 0) return 'no_runs';
+
+  const active = runs.filter((r) => r.status !== 'completed');
+  if (active.length > 0) return 'pending';
+
+  const failed = runs.filter((r) => r.conclusion !== 'success' && r.conclusion !== 'skipped' && r.conclusion !== null);
+  return failed.length > 0 ? 'failed' : 'passed';
+}

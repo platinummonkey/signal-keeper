@@ -16,6 +16,7 @@ interface PRDetailScreenProps {
   onClose: (pr: PRWithReview) => void;
   onReReview: (pr: PRWithReview, customPrompt?: string) => void;
   onAutofix: (pr: PRWithReview) => void;
+  onApproveCI: (pr: PRWithReview) => void;
 }
 
 export function PRDetailScreen({
@@ -26,6 +27,7 @@ export function PRDetailScreen({
   onClose,
   onReReview,
   onAutofix,
+  onApproveCI,
 }: PRDetailScreenProps) {
   const { review, decision } = usePRDetail(pr);
   const [statusMsg, setStatusMsg] = useState<string | undefined>();
@@ -38,6 +40,9 @@ export function PRDetailScreen({
     if (input === 'p') { onReReview(pr); return; }
     if (input === 'r') { onReReview(pr); return; }
     if (input === 'f') { onAutofix(pr); return; }
+    if (input === 'a' && pr.is_external && pr.external_stage === 'awaiting_approval') {
+      onApproveCI(pr); return;
+    }
   });
 
   const canMerge = review?.category === 'auto-merge';
@@ -51,8 +56,12 @@ export function PRDetailScreen({
       </Box>
       <Box paddingX={1} gap={3}>
         <Text dimColor>by {pr.author}</Text>
+        {pr.is_external ? <Text color="magenta" bold>[external]</Text> : null}
         <Text dimColor>base: {pr.base_branch}</Text>
         <Text dimColor>sha: {pr.head_sha.slice(0, 7)}</Text>
+        {pr.external_stage === 'awaiting_approval' && <Text color="yellow" bold>⏸ awaiting CI approval</Text>}
+        {pr.external_stage === 'ci_pending' && <Text color="cyan">⟳ CI running</Text>}
+        {pr.external_stage === 'complete' && <Text color="green">✓ final review done</Text>}
         {decision && (
           <Text color="green">✓ {decision.action}{decision.note ? ` — ${decision.note.slice(0, 40)}` : ''}</Text>
         )}
@@ -76,6 +85,9 @@ export function PRDetailScreen({
         { key: 'c', label: 'comment' },
         { key: 'x', label: 'close' },
         { key: 'p', label: 're-review' },
+        ...(pr.is_external && pr.external_stage === 'awaiting_approval'
+          ? [{ key: 'a', label: 'approve CI' }]
+          : []),
         { key: 'Esc', label: 'back' },
       ]} />
 

@@ -31,6 +31,11 @@ maxConcurrentReviews: 3
 maxReviewCostUsd: 0.50
 reviewModel: sonnet
 workDir: ~/.pr-auto-reviewer/repos
+
+# PRs from authors not in any of these orgs are treated as external contributors.
+# External PRs get an initial review pass, then prompt you to approve CI,
+# then a final review pass after CI completes.
+# trustedOrgs: [DataDog, datadog-labs, ddoghq]
 `;
 
 function expandHome(p: string): string {
