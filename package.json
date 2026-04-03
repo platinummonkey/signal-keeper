@@ -2,6 +2,7 @@
   "name": "signal-keeper",
   "version": "0.1.0",
   "description": "Automated GitHub PR reviewer with Claude Code AI and browser UI",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "signal-keeper": "./dist/index.js"
