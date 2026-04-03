@@ -18,7 +18,16 @@ export async function runClaudeReview(
 ): Promise<ClaudeResult> {
   const { model = 'sonnet', maxBudgetUsd = 0.5 } = opts;
 
-  const schemaJson = JSON.stringify(REVIEW_JSON_SCHEMA);
+  // Append JSON schema to the prompt — the CLI has no structured-output flag,
+  // so we ask the model to reply with ONLY a JSON object.
+  const fullPrompt = `${prompt}
+
+## Required Output Format
+
+Reply with ONLY a valid JSON object — no markdown, no explanation, no code fences.
+The object must match this schema exactly:
+
+${JSON.stringify(REVIEW_JSON_SCHEMA, null, 2)}`;
 
   const args = [
     '--print',
@@ -27,8 +36,7 @@ export async function runClaudeReview(
     '--tools', 'Read',
     '--model', model,
     '--max-budget-usd', String(maxBudgetUsd),
-    '--json-schema', schemaJson,
-    prompt,
+    fullPrompt,
   ];
 
   logger.debug({ model, maxBudgetUsd }, 'Spawning claude subprocess for review');
@@ -54,42 +62,64 @@ export async function runClaudeReview(
 }
 
 function extractReviewOutput(parsed: unknown): ReviewOutput {
-  // Claude --output-format json wraps the structured result
-  // The JSON schema result is in the last assistant message content
   if (typeof parsed !== 'object' || parsed === null) {
     throw new Error('Claude output is not an object');
   }
 
   const p = parsed as Record<string, unknown>;
 
-  // Try direct top-level (if --json-schema inlines the result)
+  // Direct top-level JSON object with category
   if ('category' in p) {
     return p as unknown as ReviewOutput;
   }
 
-  // Try result field
-  if ('result' in p && typeof p.result === 'object' && p.result !== null) {
+  // The CLI --output-format json puts the assistant's final text in p.result
+  if (typeof p.result === 'string') {
+    return extractFromText(p.result);
+  }
+
+  // Fallback: result is already a parsed object
+  if (typeof p.result === 'object' && p.result !== null) {
     const r = p.result as Record<string, unknown>;
     if ('category' in r) return r as unknown as ReviewOutput;
   }
 
-  // Try messages array (last assistant message)
-  if ('messages' in p && Array.isArray(p.messages)) {
-    for (let i = p.messages.length - 1; i >= 0; i--) {
-      const msg = p.messages[i] as Record<string, unknown>;
-      if (msg.role === 'assistant') {
-        const content = msg.content;
-        if (typeof content === 'string') {
-          const inner = JSON.parse(content);
-          if (typeof inner === 'object' && inner !== null && 'category' in inner) {
-            return inner as ReviewOutput;
-          }
-        }
-      }
+  throw new Error(`Could not extract ReviewOutput from: ${JSON.stringify(parsed).slice(0, 300)}`);
+}
+
+function extractFromText(text: string): ReviewOutput {
+  // 1. Try the whole string as JSON
+  try {
+    const direct = JSON.parse(text);
+    if (typeof direct === 'object' && direct !== null && 'category' in direct) {
+      return direct as ReviewOutput;
     }
+  } catch {}
+
+  // 2. Find the first {...} block that parses as a ReviewOutput
+  const braceStart = text.indexOf('{');
+  const braceEnd = text.lastIndexOf('}');
+  if (braceStart !== -1 && braceEnd > braceStart) {
+    try {
+      const candidate = JSON.parse(text.slice(braceStart, braceEnd + 1));
+      if (typeof candidate === 'object' && candidate !== null && 'category' in candidate) {
+        return candidate as ReviewOutput;
+      }
+    } catch {}
   }
 
-  throw new Error(`Could not extract ReviewOutput from: ${JSON.stringify(parsed).slice(0, 300)}`);
+  // 3. Find a ```json ... ``` block
+  const fenceMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (fenceMatch) {
+    try {
+      const candidate = JSON.parse(fenceMatch[1]);
+      if (typeof candidate === 'object' && candidate !== null && 'category' in candidate) {
+        return candidate as ReviewOutput;
+      }
+    } catch {}
+  }
+
+  throw new Error(`Could not extract ReviewOutput from text: ${text.slice(0, 300)}`);
 }
 
 function extractCost(parsed: unknown): number | undefined {

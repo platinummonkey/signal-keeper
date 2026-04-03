@@ -34,8 +34,7 @@ Categorize your review as one of:
 - **needs-changes**: Issues found that should be addressed before merging. Bugs, missing tests, design concerns, or security issues.
 - **block**: Serious problems. Security vulnerabilities, major bugs, breaking changes without migration, or fundamental design flaws.
 
-Be concise and actionable. Focus on substance over style nits unless style issues are significant.
-Return your review as structured JSON matching the schema.`;
+Be concise and actionable. Focus on substance over style nits unless style issues are significant.`;
 }
 
 function truncateDiff(diff: string, maxChars = 50_000): string {
