@@ -50,6 +50,20 @@ export interface PR {
   latest_decision?: Decision | null;
 }
 
+export type CIStatus = 'pending' | 'passed' | 'failed' | 'no_runs';
+
+export interface WorkflowRun {
+  id: number;
+  name: string | null;
+  status: string | null;
+  conclusion: string | null;
+}
+
+export interface CIResponse {
+  status: CIStatus;
+  runs: WorkflowRun[];
+}
+
 export interface DiffFile {
   filename: string;
   status: string;

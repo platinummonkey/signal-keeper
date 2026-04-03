@@ -5,7 +5,7 @@ import {
 } from '../state/models.js';
 import { actionMerge, actionComment, actionClose } from '../github/pr-actions.js';
 import { reviewPR, generateCommentFromReview } from '../review/engine.js';
-import { fetchPRDiff, fetchPRFiles } from '../github/client.js';
+import { fetchPRDiff, fetchPRFiles, getCIStatus, getWorkflowRunsForCommit } from '../github/client.js';
 import { approvePendingWorkflows } from '../daemon.js';
 import { runAutofix } from '../autofix/index.js';
 import { logger } from '../utils/logger.js';
@@ -121,6 +121,20 @@ export function createApiRouter(config: ConfigOutput): Router {
       runAutofix(pr, config)
         .catch((err) => logger.error({ err, prId: pr.id }, 'Autofix failed'));
       res.json({ ok: true, message: 'Autofix started' });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // CI status — fetched live from GitHub
+  router.get('/prs/:id/ci', async (req: Request, res: Response) => {
+    try {
+      const pr = requirePR(req, res); if (!pr) return;
+      const [status, runs] = await Promise.all([
+        getCIStatus(pr.owner, pr.repo, pr.head_sha),
+        getWorkflowRunsForCommit(pr.owner, pr.repo, pr.head_sha),
+      ]);
+      res.json({ status, runs });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }

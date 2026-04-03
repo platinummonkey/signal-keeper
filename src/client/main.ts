@@ -74,6 +74,7 @@ let selId: number | null = null;
 let curFilter: string = 'all';
 let curRepo: string = 'all';
 let diffLoaded = false;
+let ciLoaded = false;
 
 // ── PR List ───────────────────────────────────────────────────────
 async function fetchPRs(): Promise<void> {
@@ -134,6 +135,7 @@ function renderList(): void {
 function openPR(id: number): void {
   selId = id;
   diffLoaded = false;
+  ciLoaded = false;
   renderList();
   const pr = prs.find(p => p.id === id);
   if (!pr) return;
@@ -189,6 +191,15 @@ function renderBody(pr: PR): void {
     html += `<div class="section"><div class="sec-body" style="color:var(--text-dim);font-size:13px">No review yet — daemon is processing.</div></div>`;
   }
 
+  html += `<div class="section" id="ci-section">
+    <button class="diff-toggle" id="ci-toggle">
+      <span class="arrow">▶</span> CI
+      <span id="ci-status-inline" style="font-weight:400;margin-left:6px"></span>
+      <button class="ci-refresh" id="ci-refresh-btn" style="margin-left:auto">↻ Refresh</button>
+    </button>
+    <div class="diff-body" id="ci-body"><div class="diff-loading">Click to load…</div></div>
+  </div>`;
+
   html += `<div class="section" id="diff-section">
     <button class="diff-toggle" id="diff-toggle">
       <span class="arrow">▶</span> Diff
@@ -198,7 +209,101 @@ function renderBody(pr: PR): void {
   </div>`;
 
   $('detail-scroll').innerHTML = html;
+
+  // Eagerly load CI status so the header badge populates without needing to expand
+  void loadCI(pr);
+
+  $('ci-toggle').addEventListener('click', (e) => {
+    // Don't toggle if clicking the refresh button inside the toggle
+    if ((e.target as HTMLElement).id === 'ci-refresh-btn') return;
+    void toggleCI(pr);
+  });
+  $('ci-refresh-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    ciLoaded = false;
+    const body = $('ci-body');
+    if (body.classList.contains('open')) {
+      body.innerHTML = '<div class="diff-loading">Refreshing…</div>';
+      void loadCI(pr);
+    }
+  });
   $('diff-toggle').addEventListener('click', () => toggleDiff(pr));
+}
+
+// ── CI Status ─────────────────────────────────────────────────────
+const CI_ICON: Record<string, string> = {
+  pending: '⟳', in_progress: '⟳', queued: '⏳', waiting: '⏳', requested: '⏳',
+  completed: '', action_required: '⏸',
+};
+const CONCLUSION_ICON: Record<string, string> = {
+  success: '✓', skipped: '◌', neutral: '◌',
+  failure: '✗', cancelled: '✗', timed_out: '✗', action_required: '⏸',
+};
+const CONCLUSION_CLASS: Record<string, string> = {
+  success: 'color:var(--green)', skipped: 'color:var(--text-dim)', neutral: 'color:var(--text-dim)',
+  failure: 'color:var(--red)', cancelled: 'color:var(--red)', timed_out: 'color:var(--red)',
+  action_required: 'color:var(--yellow)',
+};
+
+async function toggleCI(pr: PR): Promise<void> {
+  const toggle = $('ci-toggle');
+  const body   = $('ci-body');
+  const isOpen = body.classList.contains('open');
+  if (isOpen) {
+    body.classList.remove('open');
+    toggle.classList.remove('open');
+    return;
+  }
+  body.classList.add('open');
+  toggle.classList.add('open');
+  if (!ciLoaded) await loadCI(pr);
+}
+
+async function loadCI(pr: PR): Promise<void> {
+  ciLoaded = true;
+  try {
+    const { status, runs } = await api.getCI(pr.id);
+
+    // Update inline badge
+    const badge = ciStatusBadge(status);
+    const inline = $('ci-status-inline');
+    if (inline) inline.innerHTML = badge;
+
+    const body = $('ci-body');
+    if (!runs.length) {
+      body.innerHTML = '<div class="diff-loading" style="color:var(--text-dim)">No workflow runs found.</div>';
+      return;
+    }
+
+    const rows = runs.map(r => {
+      const icon  = r.conclusion ? (CONCLUSION_ICON[r.conclusion] ?? '?') : (CI_ICON[r.status ?? ''] ?? '⟳');
+      const style = r.conclusion ? (CONCLUSION_CLASS[r.conclusion] ?? '') : 'color:var(--yellow)';
+      const label = r.conclusion
+        ? `<span style="${style}">${esc(r.conclusion)}</span>`
+        : `<span style="color:var(--yellow)">${esc(r.status ?? 'unknown')}</span>`;
+      const runUrl = `https://github.com/${pr.owner}/${pr.repo}/actions/runs/${r.id}`;
+      return `<div class="ci-run">
+        <span class="ci-run-icon" style="${style}">${icon}</span>
+        <span class="ci-run-name"><a href="${esc(runUrl)}" target="_blank" rel="noopener noreferrer">${esc(r.name ?? 'Workflow')}</a></span>
+        <span class="ci-run-status">${label}</span>
+      </div>`;
+    }).join('');
+    body.innerHTML = `<div class="ci-runs" style="padding:10px 14px">${rows}</div>`;
+  } catch (e) {
+    $('ci-body').innerHTML = `<div class="diff-loading" style="color:var(--red)">Failed: ${esc((e as Error).message)}</div>`;
+    ciLoaded = false;
+  }
+}
+
+function ciStatusBadge(status: string): string {
+  const map: Record<string, [string, string]> = {
+    pending:  ['ci-pending', '⟳ pending'],
+    passed:   ['ci-passed',  '✓ passed'],
+    failed:   ['ci-failed',  '✗ failed'],
+    no_runs:  ['ci-noruns',  '— no runs'],
+  };
+  const [cls, label] = map[status] ?? ['ci-noruns', esc(status)];
+  return `<span class="ci-badge ${cls}">${label}</span>`;
 }
 
 // ── Diff ──────────────────────────────────────────────────────────

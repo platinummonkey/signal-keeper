@@ -1,4 +1,4 @@
-import type { PR, DiffResponse } from './types.ts';
+import type { PR, DiffResponse, CIResponse } from './types.ts';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -15,6 +15,7 @@ export const api = {
   getPRs: ()                                        => request<PR[]>('GET', '/prs'),
   getPR:  (id: number)                              => request<PR>('GET', `/prs/${id}`),
   getDiff:(id: number)                              => request<DiffResponse>('GET', `/prs/${id}/diff`),
+  getCI:  (id: number)                              => request<CIResponse>('GET', `/prs/${id}/ci`),
   getStatus: ()                                     => request<{ running: boolean; lastPollAt: string | null; pollCount: number }>('GET', '/status'),
 
   merge:           (id: number)                     => request<{ ok: boolean }>('POST', `/prs/${id}/merge`),
