@@ -15,7 +15,7 @@ const BASE = {
 
 const ALL_CATEGORIES_CONFIG = {
   enabled: true,
-  categories: ['auto-merge', 'needs-attention', 'needs-changes', 'block'] as const,
+  categories: ['auto-merge', 'needs-attention', 'needs-changes', 'block'] as Array<'auto-merge' | 'needs-attention' | 'needs-changes' | 'block'>,
 };
 
 describe('notifyReviewComplete', () => {

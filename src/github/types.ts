@@ -4,6 +4,7 @@ export interface GithubPR {
   number: number;
   title: string;
   author: string;
+  body: string;
   headSha: string;
   baseBranch: string;
   state: 'open' | 'closed' | 'merged';

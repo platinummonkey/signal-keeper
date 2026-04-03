@@ -17,6 +17,7 @@ export interface PR {
   base_branch: string;
   state: string;
   url: string;
+  body: string;
   created_at: string;
   updated_at: string;
   discovered_at: string;
@@ -63,17 +64,18 @@ export interface AutofixJob {
 export function upsertPR(data: Omit<PR, 'id' | 'discovered_at'>): PR {
   const db = getDb();
   return db.prepare(`
-    INSERT INTO prs (owner, repo, number, title, author, head_sha, base_branch, state, url, created_at, updated_at, is_external, external_stage)
-    VALUES (@owner, @repo, @number, @title, @author, @head_sha, @base_branch, @state, @url, @created_at, @updated_at, @is_external, @external_stage)
+    INSERT INTO prs (owner, repo, number, title, author, head_sha, base_branch, state, url, body, created_at, updated_at, is_external, external_stage)
+    VALUES (@owner, @repo, @number, @title, @author, @head_sha, @base_branch, @state, @url, @body, @created_at, @updated_at, @is_external, @external_stage)
     ON CONFLICT(owner, repo, number) DO UPDATE SET
       title = excluded.title,
       head_sha = excluded.head_sha,
       state = excluded.state,
+      body = excluded.body,
       updated_at = excluded.updated_at,
       is_external = excluded.is_external
       -- external_stage is intentionally NOT updated here; use setExternalStage()
     RETURNING *
-  `).get(Object.assign({ is_external: 0, external_stage: null }, data)) as PR;
+  `).get(Object.assign({ is_external: 0, external_stage: null, body: '' }, data)) as PR;
 }
 
 export function setExternalStage(prId: number, stage: ExternalStage | null): void {

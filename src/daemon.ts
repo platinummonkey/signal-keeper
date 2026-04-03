@@ -121,8 +121,8 @@ async function pollCycle(): Promise<void> {
 
       upsertPR({
         owner: pr.owner, repo: pr.repo, number: pr.number,
-        title: pr.title, author: pr.author, head_sha: pr.headSha,
-        base_branch: pr.baseBranch, state: pr.state,
+        title: pr.title, author: pr.author, body: pr.body ?? '',
+        head_sha: pr.headSha, base_branch: pr.baseBranch, state: pr.state,
         url: pr.url, created_at: pr.createdAt, updated_at: pr.updatedAt,
         is_external: isExternal ? 1 : 0,
         external_stage: null,  // preserved via ON CONFLICT; only set on new rows

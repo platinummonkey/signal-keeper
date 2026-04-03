@@ -4,7 +4,7 @@ import type { GithubPR } from '../github/types.js';
 
 const BASE_PR: GithubPR = {
   owner: 'acme', repo: 'oss', number: 7,
-  title: 'Add feature', author: 'external-user',
+  title: 'Add feature', author: 'external-user', body: 'This adds a great feature.',
   headSha: 'sha1', baseBranch: 'main',
   state: 'open', url: 'https://github.com/acme/oss/pull/7',
   createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z',

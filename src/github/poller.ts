@@ -58,6 +58,7 @@ async function pollRepo(
           number: pr.number,
           title: pr.title,
           author: pr.user?.login ?? 'unknown',
+          body: pr.body ?? '',
           headSha: pr.head.sha,
           baseBranch: pr.base.ref,
           state: 'open',

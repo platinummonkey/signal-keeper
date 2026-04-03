@@ -4,6 +4,7 @@ import { ReviewPanel } from '../components/review-panel.js';
 import { ActionBar } from '../components/action-bar.js';
 import { StatusBar } from '../components/status-bar.js';
 import { usePRDetail } from '../hooks/use-pr-detail.js';
+import { openUrl } from '../../utils/open-url.js';
 import type { PRWithReview } from '../hooks/use-pr-list.js';
 import type { ConfigOutput } from '../../config/schema.js';
 
@@ -37,8 +38,9 @@ export function PRDetailScreen({
     if (input === 'm') { onMerge(pr); return; }
     if (input === 'c') { onComment(pr); return; }
     if (input === 'x') { onClose(pr); return; }
-    if (input === 'p') { onReReview(pr); return; }
-    if (input === 'r') { onReReview(pr); return; }
+    if (input === 'p') { onReReview(pr); return; }  // open custom prompt
+    if (input === 'r') { onReReview(pr, ''); return; } // re-review with no extra instruction
+    if (input === 'o') { openUrl(pr.url); setStatusMsg(`Opened ${pr.url}`); return; }
     if (input === 'f') { onAutofix(pr); return; }
     if (input === 'a' && pr.is_external && pr.external_stage === 'awaiting_approval') {
       onApproveCI(pr); return;
@@ -46,6 +48,7 @@ export function PRDetailScreen({
   });
 
   const canMerge = review?.category === 'auto-merge';
+  const bodyText = pr.body?.trim();
 
   return (
     <Box flexDirection="column" height="100%">
@@ -67,6 +70,15 @@ export function PRDetailScreen({
         )}
       </Box>
 
+      {/* PR description */}
+      {bodyText ? (
+        <Box flexDirection="column" paddingX={1} paddingY={1} borderStyle="single"
+          borderTop={false} borderLeft={false} borderRight={false}>
+          <Text bold dimColor>Description</Text>
+          <Text wrap="wrap" dimColor>{bodyText.slice(0, 800)}{bodyText.length > 800 ? ' …' : ''}</Text>
+        </Box>
+      ) : null}
+
       {/* Review content */}
       <Box flexDirection="column" flexGrow={1} overflow="hidden" paddingY={1}>
         {review ? (
@@ -84,7 +96,9 @@ export function PRDetailScreen({
         { key: 'f', label: 'merge+fix', disabled: !review },
         { key: 'c', label: 'comment' },
         { key: 'x', label: 'close' },
-        { key: 'p', label: 're-review' },
+        { key: 'r', label: 're-review' },
+        { key: 'p', label: 'custom prompt' },
+        { key: 'o', label: 'open in browser' },
         ...(pr.is_external && pr.external_stage === 'awaiting_approval'
           ? [{ key: 'a', label: 'approve CI' }]
           : []),

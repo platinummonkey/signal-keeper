@@ -16,7 +16,7 @@ function makeDbPath(): string {
 
 const BASE_PR = {
   owner: 'acme', repo: 'widget', number: 1,
-  title: 'Add feature', author: 'alice',
+  title: 'Add feature', author: 'alice', body: 'Fixes the bug.',
   head_sha: 'abc123', base_branch: 'main',
   state: 'open', url: 'https://github.com/acme/widget/pull/1',
   created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',

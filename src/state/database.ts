@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS prs (
   url TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
   discovered_at TEXT NOT NULL DEFAULT (datetime('now')),
   is_external INTEGER NOT NULL DEFAULT 0,
   external_stage TEXT,
@@ -67,6 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_autofix_jobs_pr_id ON autofix_jobs(pr_id);
 // Additive migrations — ALTER TABLE is idempotent via try/catch because
 // SQLite errors on duplicate column names.
 const MIGRATIONS_V2 = [
+  `ALTER TABLE prs ADD COLUMN body TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE prs ADD COLUMN is_external INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE prs ADD COLUMN external_stage TEXT`,
   `ALTER TABLE reviews ADD COLUMN stage TEXT NOT NULL DEFAULT 'full'`,

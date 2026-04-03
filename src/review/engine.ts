@@ -66,6 +66,7 @@ export async function reviewPR(
     number: ghPR.number,
     title: ghPR.title,
     author: ghPR.author,
+    body: ghPR.body,
     head_sha: ghPR.headSha,
     base_branch: ghPR.baseBranch,
     state: ghPR.state,

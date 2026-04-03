@@ -67,6 +67,7 @@ export async function fetchPR(owner: string, repo: string, number: number): Prom
     number: data.number,
     title: data.title,
     author: data.user?.login ?? 'unknown',
+    body: data.body ?? '',
     headSha: data.head.sha,
     baseBranch: data.base.ref,
     state: data.merged ? 'merged' : (data.state as 'open' | 'closed'),

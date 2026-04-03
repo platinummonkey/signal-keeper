@@ -4,7 +4,7 @@ import type { GithubPR } from '../github/types.js';
 
 const BASE_PR: GithubPR = {
   owner: 'acme', repo: 'widget', number: 42,
-  title: 'Fix null dereference', author: 'alice',
+  title: 'Fix null dereference', author: 'alice', body: 'Fixes a crash.',
   headSha: 'abc123', baseBranch: 'main',
   state: 'open', url: 'https://github.com/acme/widget/pull/42',
   createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z',
