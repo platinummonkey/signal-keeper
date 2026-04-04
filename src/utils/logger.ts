@@ -1,11 +1,15 @@
 import pino from 'pino';
 import { join } from 'path';
 import { paths } from './paths.js';
+import { logBuffer } from '../server/log-buffer.js';
 
 let _logger: pino.Logger | null = null;
 
 export function initLogger(opts: { pretty?: boolean; level?: string } = {}) {
   const { pretty = false, level = 'info' } = opts;
+
+  // Always write to the in-memory buffer (feeds the browser log overlay)
+  const bufferStream = logBuffer.createStream();
 
   const transport = pretty
     ? pino.transport({ target: 'pino-pretty', options: { colorize: true } })
@@ -18,7 +22,10 @@ export function initLogger(opts: { pretty?: boolean; level?: string } = {}) {
         ],
       });
 
-  _logger = pino({ level }, transport);
+  _logger = pino({ level }, pino.multistream([
+    { stream: bufferStream },
+    { stream: transport },
+  ]));
   return _logger;
 }
 

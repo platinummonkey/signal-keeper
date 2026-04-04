@@ -6,6 +6,7 @@ import type { Request, Response } from 'express';
 import { createApiRouter } from './api.js';
 import { eventBus } from './event-bus.js';
 import { notBuiltPage, fixLogPage } from './ui.js';
+import { logBuffer } from './log-buffer.js';
 import { getDaemonState } from '../daemon.js';
 import { logger } from '../utils/logger.js';
 import type { ConfigOutput } from '../config/schema.js';
@@ -31,6 +32,20 @@ export async function startServer(config: ConfigOutput, devMode = false): Promis
   app.get('/fix-log', (_req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(fixLogPage());
+  });
+
+  // Daemon log endpoints
+  app.get('/api/logs', (_req: Request, res: Response) => {
+    res.json(logBuffer.getAll());
+  });
+  app.get('/api/logs/stream', (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    const unsub = logBuffer.subscribe(line => res.write(`data: ${JSON.stringify(line)}\n\n`));
+    req.on('close', unsub);
   });
 
   // Daemon status

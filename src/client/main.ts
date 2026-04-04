@@ -257,11 +257,9 @@ function selectTab(pr: PR, tab: string): void {
 
 function fixTabHTML(ft: FixTab): string {
   const lines = ft.logs.map(line => {
-    const cls = line.startsWith('[stderr]') ? 'fl-err'
-      : line.startsWith('✓') ? 'fl-done'
-      : line.startsWith('✗') ? 'fl-fail'
-      : 'fl-out';
-    return `<span class="${cls}">${esc(line)}\n</span>`;
+    const fmt = formatFixLine(line);
+    if (!fmt) return '';
+    return `<span class="${fmt.cls}">${esc(fmt.text)}\n</span>`;
   }).join('');
   const prLink = ft.followUpPrUrl
     ? `<a class="fix-pr-link" href="${esc(ft.followUpPrUrl)}" target="_blank" rel="noopener noreferrer">↗ View follow-up PR</a>`
@@ -269,25 +267,36 @@ function fixTabHTML(ft: FixTab): string {
   return `<div id="fix-log-content">${lines || '<span class="fl-err">Waiting for output…</span>'}${prLink}</div>`;
 }
 
+function formatFixLine(raw: string): { cls: string; text: string } | null {
+  // Try to parse as the final Claude JSON blob
+  if (raw.trimStart().startsWith('{')) {
+    try {
+      const j = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof j.result === 'string') {
+        const cost = typeof j.total_cost_usd === 'number' ? ` ($${j.total_cost_usd.toFixed(4)})` : '';
+        return { cls: 'fl-out', text: `\n${j.result}${cost}` };
+      }
+    } catch { /* not json */ }
+  }
+  if (raw.startsWith('[stderr]')) return { cls: 'fl-err', text: raw.slice(8).trim() };
+  if (raw.startsWith('✓')) return { cls: 'fl-done', text: raw };
+  if (raw.startsWith('✗')) return { cls: 'fl-fail', text: raw };
+  return { cls: 'fl-out', text: raw };
+}
+
 function appendFixLog(sessionId: string, line: string): void {
-  // Only update DOM if this tab is currently active
   if (activeTab !== sessionId) return;
   const el = document.getElementById('fix-log-content');
   if (!el) return;
+  const fmt = formatFixLine(line);
+  if (!fmt) return;
   const span = document.createElement('span');
-  const cls = line.startsWith('[stderr]') ? 'fl-err'
-    : line.startsWith('✓') ? 'fl-done'
-    : line.startsWith('✗') ? 'fl-fail'
-    : 'fl-out';
-  span.className = cls;
-  span.textContent = line + '\n';
-  // Replace placeholder if present
+  span.className = fmt.cls;
+  span.textContent = fmt.text + '\n';
   const placeholder = el.querySelector('.fl-err');
   if (placeholder?.textContent?.includes('Waiting')) placeholder.remove();
   el.appendChild(span);
-  // Auto-scroll
-  const tc = $('tab-content');
-  tc.scrollTop = tc.scrollHeight;
+  $('tab-content').scrollTop = $('tab-content').scrollHeight;
 }
 
 function reviewTabHTML(pr: PR): string {
@@ -641,6 +650,66 @@ async function fetchStatus(): Promise<void> {
     $('last-poll').textContent = s.lastPollAt ? `Last poll: ${ago(s.lastPollAt)}` : '';
   } catch { /* ignore */ }
 }
+
+// ── Daemon log overlay ────────────────────────────────────────────
+interface LogLine { ts: string; level: string; msg: string }
+
+let logOverlayES: EventSource | null = null;
+
+function openLogOverlay(): void {
+  const overlay = $('log-overlay');
+  const scrim   = $('log-overlay-scrim');
+  overlay.classList.add('open');
+  scrim.classList.add('open');
+
+  const body = $('log-overlay-body');
+
+  // Load historical lines
+  fetch('/api/logs')
+    .then(r => r.json())
+    .then((lines: LogLine[]) => {
+      body.innerHTML = '';
+      lines.forEach(l => appendLogLine(l));
+      body.scrollTop = body.scrollHeight;
+    })
+    .catch(() => {});
+
+  // Stream live
+  if (!logOverlayES) {
+    logOverlayES = new EventSource('/api/logs/stream');
+    logOverlayES.onmessage = (ev) => {
+      const line = JSON.parse(ev.data) as LogLine;
+      appendLogLine(line);
+      const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+      if (atBottom) body.scrollTop = body.scrollHeight;
+    };
+  }
+}
+
+function closeLogOverlay(): void {
+  $('log-overlay').classList.remove('open');
+  $('log-overlay-scrim').classList.remove('open');
+}
+
+function appendLogLine(l: LogLine): void {
+  const body = $('log-overlay-body');
+  const ts  = l.ts ? new Date(l.ts).toLocaleTimeString() : '';
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = `<span class="log-ts">${esc(ts)}</span>` +
+    `<span class="log-lvl ${esc(l.level)}">${esc(l.level)}</span>` +
+    `<span class="log-msg">${esc(l.msg)}</span>`;
+  body.appendChild(div);
+}
+
+$('log-toggle').addEventListener('click', () => {
+  $('log-overlay').classList.contains('open') ? closeLogOverlay() : openLogOverlay();
+});
+$('log-overlay-close').addEventListener('click', closeLogOverlay);
+$('log-overlay-scrim').addEventListener('click', closeLogOverlay);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('log-overlay').classList.contains('open')) closeLogOverlay();
+});
 
 // ── Boot ──────────────────────────────────────────────────────────
 void fetchPRs();
