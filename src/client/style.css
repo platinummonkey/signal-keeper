@@ -93,6 +93,18 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
 .tab-btn:hover { color:var(--text); }
 .tab-btn.active { color:var(--text); border-bottom-color:var(--accent); font-weight:500; }
 .tab-badge { font-size:11px; padding:1px 6px; border-radius:20px; font-weight:600; }
+.tab-btn.fix-running { color:var(--accent); }
+.tab-btn.fix-done    { color:var(--green); }
+.tab-btn.fix-failed  { color:var(--red); }
+
+/* Fix log viewer inside the tab */
+#fix-log-content { font-family:var(--font-mono); font-size:12px; line-height:1.7;
+                   white-space:pre-wrap; word-break:break-word; color:var(--text-dim); }
+#fix-log-content .fl-out  { color:var(--text); }
+#fix-log-content .fl-err  { color:var(--text-dim); }
+#fix-log-content .fl-done { color:var(--green); font-weight:600; }
+#fix-log-content .fl-fail { color:var(--red); font-weight:600; }
+.fix-pr-link { display:inline-block; margin-top:8px; color:var(--accent); }
 
 #tab-content { flex:1; overflow-y:auto; padding:16px 20px; min-height:0; }
 #tab-content::-webkit-scrollbar { width:5px; }

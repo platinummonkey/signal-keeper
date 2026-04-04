@@ -77,8 +77,20 @@ let curRepo: string = 'all';
 let diffLoaded = false;
 let ciLoaded = false;
 let ciPollTimer: ReturnType<typeof setInterval> | null = null;
-let activeTab: 'review' | 'description' | 'ci' | 'diff' = 'review';
+type FixTabStatus = 'running' | 'done' | 'failed';
+interface FixTab {
+  sessionId: string;
+  jobName: string;
+  logs: string[];
+  status: FixTabStatus;
+  followUpPrUrl: string | null;
+  es: EventSource | null;
+}
+
+type TabId = 'review' | 'description' | 'ci' | 'diff' | string; // string = fix session ID
+let activeTab: TabId = 'review';
 let lastCIData: { status: string; runs: import('./types.ts').WorkflowRun[] } | null = null;
+let fixTabs: FixTab[] = [];  // fix sessions for the current PR
 
 // ── PR List ───────────────────────────────────────────────────────
 async function fetchPRs(): Promise<void> {
@@ -143,6 +155,8 @@ function openPR(id: number): void {
   lastCIData = null;
   activeTab = 'review';
   stopCIPoll();
+  fixTabs.forEach(ft => ft.es?.close());
+  fixTabs = [];
   renderList();
   const pr = prs.find(p => p.id === id);
   if (!pr) return;
@@ -171,14 +185,7 @@ function renderHeader(pr: PR): void {
 
 // ── Tabs ──────────────────────────────────────────────────────────
 function renderBody(pr: PR): void {
-  $('tab-bar').innerHTML = `
-    <button class="tab-btn active" data-tab="review">Review</button>
-    <button class="tab-btn" data-tab="description">Description</button>
-    <button class="tab-btn" data-tab="ci">CI <span id="ci-tab-badge"></span></button>
-    <button class="tab-btn" data-tab="diff">Diff <span id="diff-tab-badge"></span></button>
-  `;
-  $('tab-bar').querySelectorAll<HTMLButtonElement>('.tab-btn').forEach(btn =>
-    btn.addEventListener('click', () => selectTab(pr, btn.dataset.tab as typeof activeTab)));
+  renderTabBar(pr);
 
   // Load CI in background immediately to populate the tab badge
   void loadCI(pr);
@@ -186,7 +193,35 @@ function renderBody(pr: PR): void {
   selectTab(pr, 'review');
 }
 
-function selectTab(pr: PR, tab: typeof activeTab): void {
+function renderTabBar(pr: PR): void {
+  const fixBtns = fixTabs.map(ft => {
+    const icon = ft.status === 'running' ? '⟳' : ft.status === 'done' ? '✓' : '✗';
+    const cls  = `fix-${ft.status}`;
+    return `<button class="tab-btn ${cls}" data-tab="${esc(ft.sessionId)}">${icon} ${esc(ft.jobName)}</button>`;
+  }).join('');
+  $('tab-bar').innerHTML = `
+    <button class="tab-btn" data-tab="review">Review</button>
+    <button class="tab-btn" data-tab="description">Description</button>
+    <button class="tab-btn" data-tab="ci">CI <span id="ci-tab-badge"></span></button>
+    <button class="tab-btn" data-tab="diff">Diff <span id="diff-tab-badge"></span></button>
+    ${fixBtns}
+  `;
+  $('tab-bar').querySelectorAll<HTMLButtonElement>('.tab-btn').forEach(btn =>
+    btn.addEventListener('click', () => selectTab(pr, btn.dataset.tab!)));
+  // Re-apply active state and ci badge
+  $('tab-bar').querySelectorAll<HTMLElement>('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === activeTab));
+  if (lastCIData) {
+    const badge = document.getElementById('ci-tab-badge');
+    if (badge) {
+      const m: Record<string, string> = { pending: 'ci-pending', passed: 'ci-passed', failed: 'ci-failed' };
+      badge.className = 'tab-badge ' + (m[lastCIData.status] ?? 'ci-noruns');
+      badge.textContent = lastCIData.status === 'pending' ? '⟳' : lastCIData.status === 'passed' ? '✓' : lastCIData.status === 'failed' ? '✗' : '';
+    }
+  }
+}
+
+function selectTab(pr: PR, tab: string): void {
   activeTab = tab;
   $('tab-bar').querySelectorAll('.tab-btn').forEach(b =>
     b.classList.toggle('active', (b as HTMLElement).dataset.tab === tab));
@@ -211,7 +246,48 @@ function selectTab(pr: PR, tab: typeof activeTab): void {
         void loadDiff(pr);
       }
       break;
+    default: {
+      // Fix session tab
+      const ft = fixTabs.find(f => f.sessionId === tab);
+      if (ft) tc.innerHTML = fixTabHTML(ft);
+      break;
+    }
   }
+}
+
+function fixTabHTML(ft: FixTab): string {
+  const lines = ft.logs.map(line => {
+    const cls = line.startsWith('[stderr]') ? 'fl-err'
+      : line.startsWith('✓') ? 'fl-done'
+      : line.startsWith('✗') ? 'fl-fail'
+      : 'fl-out';
+    return `<span class="${cls}">${esc(line)}\n</span>`;
+  }).join('');
+  const prLink = ft.followUpPrUrl
+    ? `<a class="fix-pr-link" href="${esc(ft.followUpPrUrl)}" target="_blank" rel="noopener noreferrer">↗ View follow-up PR</a>`
+    : '';
+  return `<div id="fix-log-content">${lines || '<span class="fl-err">Waiting for output…</span>'}${prLink}</div>`;
+}
+
+function appendFixLog(sessionId: string, line: string): void {
+  // Only update DOM if this tab is currently active
+  if (activeTab !== sessionId) return;
+  const el = document.getElementById('fix-log-content');
+  if (!el) return;
+  const span = document.createElement('span');
+  const cls = line.startsWith('[stderr]') ? 'fl-err'
+    : line.startsWith('✓') ? 'fl-done'
+    : line.startsWith('✗') ? 'fl-fail'
+    : 'fl-out';
+  span.className = cls;
+  span.textContent = line + '\n';
+  // Replace placeholder if present
+  const placeholder = el.querySelector('.fl-err');
+  if (placeholder?.textContent?.includes('Waiting')) placeholder.remove();
+  el.appendChild(span);
+  // Auto-scroll
+  const tc = $('tab-content');
+  tc.scrollTop = tc.scrollHeight;
 }
 
 function reviewTabHTML(pr: PR): string {
@@ -346,12 +422,35 @@ function bindCIFixButtons(pr: PR): void {
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>';
       try {
-        const { logUrl } = await api.fixCIJob(pr.id, jobName);
-        window.open(logUrl, '_blank', 'noopener');
-        toast(`CI fix started for "${jobName}" — watching live in new tab`, 'info');
+        const { sessionId } = await api.fixCIJob(pr.id, jobName);
+
+        const ft: FixTab = { sessionId, jobName, logs: [], status: 'running', followUpPrUrl: null, es: null };
+        fixTabs.push(ft);
+        renderTabBar(pr);
+        selectTab(pr, sessionId);
+
+        const es = new EventSource(`/api/fix/${sessionId}/logs`);
+        ft.es = es;
+        es.onmessage = (ev) => {
+          const line = JSON.parse(ev.data) as string;
+          if (line === '[done]') {
+            es.close(); ft.es = null;
+            api.fixStatus(sessionId).then(s => {
+              ft.status = s.status as FixTabStatus;
+              ft.followUpPrUrl = s.followUpPrUrl;
+              renderTabBar(pr);
+              if (activeTab === sessionId) $('tab-content').innerHTML = fixTabHTML(ft);
+            }).catch(() => { ft.status = 'failed'; renderTabBar(pr); });
+            return;
+          }
+          ft.logs.push(line);
+          appendFixLog(sessionId, line);
+        };
+        es.onerror = () => { es.close(); ft.es = null; ft.status = 'failed'; renderTabBar(pr); };
+
+        toast(`CI fix started for "${jobName}"`, 'info');
       } catch (e) {
         toast(`CI fix failed: ${(e as Error).message}`, 'error');
-      } finally {
         btn.disabled = false;
         btn.innerHTML = orig;
       }

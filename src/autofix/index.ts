@@ -23,8 +23,6 @@ export async function runCIJobFix(
   if (!prRow) throw new Error('PR not found');
 
   const review = getLatestReview(prId);
-  const sessionId = review?.session_id ?? undefined;
-
   const job = createAutofixJob({ pr_id: prId, review_id: review?.id });
 
   try {
@@ -40,8 +38,7 @@ export async function runCIJobFix(
 
     await runClaudeCIFix(repoDir, jobName, {
       model: config.reviewModel,
-      maxBudgetUsd: config.maxReviewCostUsd * 2,
-      resumeSessionId: sessionId,
+      maxBudgetUsd: config.maxFixCostUsd,
       onLog,
     });
 
@@ -96,7 +93,7 @@ export async function runAutofix(pr: PRWithReview, config: ConfigOutput): Promis
 
     await runClaudeFix(repoDir, review, {
       model: config.reviewModel,
-      maxBudgetUsd: config.maxReviewCostUsd * 2,
+      maxBudgetUsd: config.maxFixCostUsd,
     });
 
     updateAutofixJob(job.id, { status: 'pushing' });

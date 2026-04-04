@@ -13,7 +13,10 @@ export function run(
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const { input, onOutput, ...spawnOpts } = opts;
-    const child = spawn(cmd, args, { ...spawnOpts, stdio: 'pipe' });
+    // When no input is provided, redirect stdin from /dev/null so subprocesses
+    // (e.g. claude CLI) don't wait for stdin and emit "no stdin data" warnings.
+    const stdinMode = input ? 'pipe' : 'ignore';
+    const child = spawn(cmd, args, { ...spawnOpts, stdio: [stdinMode, 'pipe', 'pipe'] });
 
     let stdout = '';
     let stderr = '';

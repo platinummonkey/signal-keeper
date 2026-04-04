@@ -37,6 +37,9 @@ workDir: ~/.signal-keeper/repos
 # then a final review pass after CI completes.
 # trustedOrgs: [DataDog, datadog-labs, ddoghq]
 
+# Budget cap for autofix and CI fix sessions (Claude with edit tools)
+maxFixCostUsd: 10.00
+
 # Web UI server port
 port: 7777
 `;

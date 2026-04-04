@@ -10,9 +10,9 @@ export interface FixRunnerResult {
 export async function runClaudeCIFix(
   repoDir: string,
   jobName: string,
-  opts: { model?: string; maxBudgetUsd?: number; resumeSessionId?: string; onLog?: (line: string) => void } = {},
+  opts: { model?: string; maxBudgetUsd?: number; onLog?: (line: string) => void } = {},
 ): Promise<FixRunnerResult> {
-  const { model = 'sonnet', maxBudgetUsd = 1.0, resumeSessionId, onLog } = opts;
+  const { model = 'sonnet', maxBudgetUsd = 10.0, onLog } = opts;
 
   const prompt = `You are fixing a CI/CD failure in a GitHub Pull Request.
 
@@ -37,13 +37,9 @@ Rules:
     '--add-dir', repoDir,
   ];
 
-  if (resumeSessionId) {
-    args.push('--resume', resumeSessionId, '--fork-session');
-  }
-
   args.push(prompt);
 
-  logger.info({ repoDir, jobName, resumeSessionId }, 'Running Claude CI fix');
+  logger.info({ repoDir, jobName }, 'Running Claude CI fix');
 
   const result = await run('claude', args, { cwd: repoDir, timeout: 600_000, onOutput: onLog } as Parameters<typeof run>[2]);
 

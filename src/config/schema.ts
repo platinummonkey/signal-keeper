@@ -34,6 +34,7 @@ export const configSchema = z.object({
   reviewModel: z.string().default('sonnet'),
   workDir: z.string().default('~/.signal-keeper/repos'),
   trustedOrgs: z.array(z.string()).default([]),
+  maxFixCostUsd: z.number().positive().default(10.0),
   port: z.number().int().min(1024).max(65535).default(7777),
 });
 
