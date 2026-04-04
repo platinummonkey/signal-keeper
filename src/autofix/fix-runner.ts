@@ -27,6 +27,8 @@ Rules:
 - Use Read to understand the code, Edit to fix it, Bash to run checks if needed
 - After fixing, briefly summarise what you changed and why`;
 
+  // Pass the prompt via stdin — explicit "through stdin" mode avoids any
+  // positional-argument parsing ambiguity with --add-dir consuming extra args.
   const args = [
     '--print',
     '--output-format', 'json',
@@ -37,11 +39,9 @@ Rules:
     '--add-dir', repoDir,
   ];
 
-  args.push(prompt);
-
   logger.info({ repoDir, jobName }, 'Running Claude CI fix');
 
-  const result = await run('claude', args, { cwd: repoDir, timeout: 600_000, onOutput: onLog } as Parameters<typeof run>[2]);
+  const result = await run('claude', args, { cwd: repoDir, timeout: 600_000, input: prompt, onOutput: onLog } as Parameters<typeof run>[2]);
 
   if (result.exitCode !== 0) {
     throw new Error(`claude CI fix exited ${result.exitCode}: ${result.stderr.slice(0, 300)}`);
