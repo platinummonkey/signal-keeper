@@ -24,7 +24,8 @@ export const api = {
   review:          (id: number, prompt?: string)    => request<{ ok: boolean }>('POST', `/prs/${id}/review`, { prompt }),
   approveCI:       (id: number)                     => request<{ ok: boolean }>('POST', `/prs/${id}/approve-ci`),
   generateComment: (id: number, instruction: string) => request<{ ok: boolean; body: string }>('POST', `/prs/${id}/generate-comment`, { instruction }),
-  autofix:         (id: number)                     => request<{ ok: boolean }>('POST', `/prs/${id}/autofix`),
+  autofix:         (id: number)                     => request<{ ok: boolean; sessionId: string; logUrl: string }>('POST', `/prs/${id}/autofix`),
+  mergeAndFix:     (id: number)                     => request<{ ok: boolean; sessionId: string; logUrl: string }>('POST', `/prs/${id}/merge-and-fix`),
   fixCIJob:        (id: number, jobName: string)    => request<{ ok: boolean; sessionId: string; logUrl: string }>('POST', `/prs/${id}/fix-ci-job`, { jobName }),
   fixStatus:       (sessionId: string)              => request<{ status: string; followUpPrUrl: string | null }>('GET', `/fix/${sessionId}`),
 };

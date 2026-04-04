@@ -103,7 +103,7 @@ export async function runCIJobFix(
   }
 }
 
-export async function runAutofix(pr: PRWithReview, config: ConfigOutput): Promise<AutofixResult> {
+export async function runAutofix(pr: PRWithReview, config: ConfigOutput, onLog?: (line: string) => void): Promise<AutofixResult> {
   const review = getLatestReview(pr.id);
   if (!review) throw new Error('No review found for this PR — run a review first');
 
@@ -128,6 +128,7 @@ export async function runAutofix(pr: PRWithReview, config: ConfigOutput): Promis
     await runClaudeFix(wtPath, review, {
       model: config.reviewModel,
       maxBudgetUsd: config.maxFixCostUsd,
+      onLog,
     });
 
     updateAutofixJob(job.id, { status: 'pushing' });

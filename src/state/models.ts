@@ -1,6 +1,6 @@
 import { getDb } from './database.js';
 
-export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block';
+export type ReviewCategory = 'auto-merge' | 'merge-fix' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block';
 export type DecisionAction = 'merged' | 'commented' | 'closed' | 'dismissed' | 're-reviewed';
 export type AutofixStatus = 'pending' | 'cloning' | 'running' | 'pushing' | 'done' | 'failed';
 export type ExternalStage = 'awaiting_approval' | 'ci_pending' | 'complete';

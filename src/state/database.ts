@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   pr_id INTEGER NOT NULL REFERENCES prs(id) ON DELETE CASCADE,
   head_sha TEXT NOT NULL,
-  category TEXT NOT NULL CHECK(category IN ('auto-merge','needs-attention','needs-changes','fix-merge','block')),
+  category TEXT NOT NULL CHECK(category IN ('auto-merge','merge-fix','needs-attention','needs-changes','fix-merge','block')),
   summary TEXT NOT NULL,
   notes TEXT NOT NULL DEFAULT '[]',
   suggested_changes TEXT NOT NULL DEFAULT '[]',
@@ -102,7 +102,7 @@ export function initDb(dbPath: string): Database.Database {
     "SELECT sql FROM sqlite_master WHERE type='table' AND name='reviews'",
   ).get() as { sql: string } | undefined)?.sql ?? '';
 
-  if (!reviewsSql.includes('fix-merge')) {
+  if (!reviewsSql.includes('fix-merge') || !reviewsSql.includes('merge-fix')) {
     // Disable FK checks during the migration: when SQLite renames a table it
     // auto-updates any other table's FK references to the new name, so
     // DROP TABLE reviews_pre_fixmerge would fail because autofix_jobs still
@@ -115,7 +115,7 @@ export function initDb(dbPath: string): Database.Database {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           pr_id INTEGER NOT NULL REFERENCES prs(id) ON DELETE CASCADE,
           head_sha TEXT NOT NULL,
-          category TEXT NOT NULL CHECK(category IN ('auto-merge','needs-attention','needs-changes','fix-merge','block')),
+          category TEXT NOT NULL CHECK(category IN ('auto-merge','merge-fix','needs-attention','needs-changes','fix-merge','block')),
           summary TEXT NOT NULL,
           notes TEXT NOT NULL DEFAULT '[]',
           suggested_changes TEXT NOT NULL DEFAULT '[]',

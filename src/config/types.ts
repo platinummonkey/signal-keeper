@@ -15,7 +15,7 @@ export type Target = OrgTarget | RepoTarget;
 
 export interface NotificationsConfig {
   enabled: boolean;
-  categories: Array<'auto-merge' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block'>;
+  categories: Array<'auto-merge' | 'merge-fix' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block'>;
 }
 
 export interface Config {

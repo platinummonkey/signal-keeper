@@ -69,6 +69,7 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
 .b-auto    { background:rgba(63,185,80,.15);  color:var(--green);  border:1px solid rgba(63,185,80,.3); }
 .b-attn    { background:rgba(210,153,34,.15); color:var(--yellow); border:1px solid rgba(210,153,34,.3); }
 .b-chng    { background:rgba(219,109,40,.15); color:var(--orange); border:1px solid rgba(219,109,40,.3); }
+.b-merge-fix { background:rgba(56,139,253,.15); color:var(--accent); border:1px solid rgba(56,139,253,.3); }
 .b-fix-merge { background:rgba(188,140,255,.15); color:var(--purple); border:1px solid rgba(188,140,255,.3); }
 .b-block   { background:rgba(248,81,73,.15);  color:var(--red);    border:1px solid rgba(248,81,73,.3); }
 .b-pend    { background:rgba(210,153,34,.15); color:var(--yellow); border:1px solid rgba(210,153,34,.3); }

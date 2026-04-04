@@ -58,6 +58,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal
 // ── Badges ────────────────────────────────────────────────────────
 const CATEGORY_MAP: Record<ReviewCategory, [string, string]> = {
   'auto-merge':      ['b-auto',       '✓ auto-merge'],
+  'merge-fix':       ['b-merge-fix',  '🔀 merge+fix'],
   'needs-attention': ['b-attn',       '👀 attention'],
   'needs-changes':   ['b-chng',       '⚠ changes'],
   'fix-merge':       ['b-fix-merge',  '🔧 fix CI'],
@@ -421,6 +422,34 @@ async function loadCI(pr: PR): Promise<void> {
   }
 }
 
+function openFixTab(pr: PR, sessionId: string, jobName: string): void {
+  const ft: FixTab = { sessionId, jobName, logs: [], status: 'running', followUpPrUrl: null, es: null };
+  fixTabs.push(ft);
+  const prTabs = fixTabsByPr.get(pr.id);
+  if (prTabs && !prTabs.includes(ft)) prTabs.push(ft);
+  renderTabBar(pr);
+  selectTab(pr, sessionId);
+
+  const es = new EventSource(`/api/fix/${sessionId}/logs`);
+  ft.es = es;
+  es.onmessage = (ev) => {
+    const line = JSON.parse(ev.data) as string;
+    if (line === '[done]') {
+      es.close(); ft.es = null;
+      api.fixStatus(sessionId).then(s => {
+        ft.status = s.status as FixTabStatus;
+        ft.followUpPrUrl = s.followUpPrUrl;
+        renderTabBar(pr);
+        if (activeTab === sessionId) $('tab-content').innerHTML = fixTabHTML(ft);
+      }).catch(() => { ft.status = 'failed'; renderTabBar(pr); });
+      return;
+    }
+    ft.logs.push(line);
+    appendFixLog(sessionId, line);
+  };
+  es.onerror = () => { es.close(); ft.es = null; ft.status = 'failed'; renderTabBar(pr); };
+}
+
 function bindCIFixButtons(pr: PR): void {
   $('tab-content').querySelectorAll<HTMLButtonElement>('.ci-fix-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -430,30 +459,7 @@ function bindCIFixButtons(pr: PR): void {
       btn.innerHTML = '<span class="spinner"></span>';
       try {
         const { sessionId } = await api.fixCIJob(pr.id, jobName);
-
-        const ft: FixTab = { sessionId, jobName, logs: [], status: 'running', followUpPrUrl: null, es: null };
-        fixTabs.push(ft);
-        renderTabBar(pr);
-        selectTab(pr, sessionId);
-
-        const es = new EventSource(`/api/fix/${sessionId}/logs`);
-        ft.es = es;
-        es.onmessage = (ev) => {
-          const line = JSON.parse(ev.data) as string;
-          if (line === '[done]') {
-            es.close(); ft.es = null;
-            api.fixStatus(sessionId).then(s => {
-              ft.status = s.status as FixTabStatus;
-              ft.followUpPrUrl = s.followUpPrUrl;
-              renderTabBar(pr);
-              if (activeTab === sessionId) $('tab-content').innerHTML = fixTabHTML(ft);
-            }).catch(() => { ft.status = 'failed'; renderTabBar(pr); });
-            return;
-          }
-          ft.logs.push(line);
-          appendFixLog(sessionId, line);
-        };
-        es.onerror = () => { es.close(); ft.es = null; ft.status = 'failed'; renderTabBar(pr); };
+        openFixTab(pr, sessionId, jobName);
 
         toast(`CI fix started for "${jobName}"`, 'info');
       } catch (e) {
@@ -489,11 +495,13 @@ async function loadDiff(pr: PR): Promise<void> {
 
 // ── Action bar ────────────────────────────────────────────────────
 function renderActions(pr: PR): void {
-  // fix-merge means CI is failing — block merge even though code looks fine
-  const canMerge = pr.latest_review?.category === 'auto-merge';
+  // fix-merge: CI failing — block merge. merge-fix: safe to merge (Merge button + Merge+Fix button).
+  const cat = pr.latest_review?.category;
+  const canMerge = cat === 'auto-merge' || cat === 'merge-fix';
   const needsCI  = !!(pr.pending_approval || pr.external_stage === 'awaiting_approval');
   $('action-bar').innerHTML = `
     <button class="btn btn-success" ${canMerge ? '' : 'disabled'} data-act="merge">Merge</button>
+    ${cat === 'merge-fix' ? `<button class="btn btn-primary" data-act="merge-and-fix">🔀 Merge + Fix</button>` : ''}
     <button class="btn" data-act="comment">Comment</button>
     <button class="btn" data-act="ai-comment">✨ AI Comment</button>
     <button class="btn" data-act="review">Re-review</button>
@@ -569,10 +577,18 @@ async function handleAction(e: Event, pr: PR, act: string): Promise<void> {
       break;
 
     case 'autofix':
-      await api.autofix(pr.id)
-        .then(() => toast('Autofix started — follow-up PR will be created', 'info'))
-        .catch((err: Error) => toast(`Failed: ${err.message}`, 'error'));
+    case 'merge-and-fix': {
+      const isMergeAndFix = act === 'merge-and-fix';
+      try {
+        const { sessionId } = isMergeAndFix
+          ? await api.mergeAndFix(pr.id)
+          : await api.autofix(pr.id);
+        openFixTab(pr, sessionId, isMergeAndFix ? 'post-merge fix' : 'autofix');
+        toast(isMergeAndFix ? 'PR merged — autofix running' : 'Autofix started', 'info');
+        if (isMergeAndFix) { await fetchPRs(); }
+      } catch (e) { toast(`Failed: ${(e as Error).message}`, 'error'); }
       break;
+    }
 
     case 'close':
       if (!confirm('Close this PR?')) return;

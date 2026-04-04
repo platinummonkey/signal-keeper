@@ -17,6 +17,7 @@ export function notify(opts: {
 
   const icon: Record<ReviewCategory, string> = {
     'auto-merge': '✅',
+    'merge-fix': '🔀',
     'needs-attention': '👀',
     'needs-changes': '⚠️',
     'fix-merge': '🔧',

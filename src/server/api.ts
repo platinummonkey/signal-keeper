@@ -205,13 +205,40 @@ export function createApiRouter(config: ConfigOutput): Router {
     res.json(session);
   });
 
-  // Autofix
+  // Autofix — returns a session ID for live log streaming
   router.post('/prs/:id/autofix', async (req: Request, res: Response) => {
     try {
       const pr = requirePR(req, res); if (!pr) return;
-      runAutofix(pr, config)
-        .catch((err) => logger.error({ err, prId: pr.id }, 'Autofix failed'));
-      res.json({ ok: true, message: 'Autofix started' });
+      const sessionId = fixSessions.create({
+        prId: pr.id, owner: pr.owner, repo: pr.repo, prNumber: pr.number, jobName: 'autofix',
+      });
+      runAutofix(pr, config, (line) => fixSessions.addLog(sessionId, line))
+        .then((result) => fixSessions.setDone(sessionId, result.followUpPrUrl))
+        .catch((err) => {
+          logger.error({ err, prId: pr.id }, 'Autofix failed');
+          fixSessions.setFailed(sessionId, (err as Error).message);
+        });
+      res.json({ ok: true, sessionId, logUrl: `/fix-log?session=${sessionId}` });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // Merge + fix: merge the PR then immediately start autofix for follow-up
+  router.post('/prs/:id/merge-and-fix', async (req: Request, res: Response) => {
+    try {
+      const pr = requirePR(req, res); if (!pr) return;
+      await actionMerge(pr.id, pr.owner, pr.repo, pr.number, pr.head_sha);
+      const sessionId = fixSessions.create({
+        prId: pr.id, owner: pr.owner, repo: pr.repo, prNumber: pr.number, jobName: 'post-merge fix',
+      });
+      runAutofix(pr, config, (line) => fixSessions.addLog(sessionId, line))
+        .then((result) => fixSessions.setDone(sessionId, result.followUpPrUrl))
+        .catch((err) => {
+          logger.error({ err, prId: pr.id }, 'Post-merge autofix failed');
+          fixSessions.setFailed(sessionId, (err as Error).message);
+        });
+      res.json({ ok: true, sessionId, logUrl: `/fix-log?session=${sessionId}` });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }

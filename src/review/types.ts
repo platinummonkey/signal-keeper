@@ -1,6 +1,6 @@
-// fix-merge is not emitted by the AI — it is applied post-review when
-// the AI returns auto-merge but CI is currently failing.
-export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block';
+// fix-merge  — not emitted by AI; applied post-review when auto-merge + CI failing.
+// merge-fix  — AI emits this when code is safe to ship but review notes a follow-up fix.
+export type ReviewCategory = 'auto-merge' | 'merge-fix' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block';
 
 export interface SuggestedChange {
   file: string;
@@ -22,8 +22,8 @@ export const REVIEW_JSON_SCHEMA = {
   properties: {
     category: {
       type: 'string',
-      enum: ['auto-merge', 'needs-attention', 'needs-changes', 'block'],
-      description: 'Overall assessment category',
+      enum: ['auto-merge', 'merge-fix', 'needs-attention', 'needs-changes', 'block'],
+      description: 'Overall assessment category. Use merge-fix when the PR is safe to ship but has non-blocking issues worth addressing in a follow-up.',
     },
     summary: {
       type: 'string',

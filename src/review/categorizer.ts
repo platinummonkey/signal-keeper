@@ -1,10 +1,11 @@
 import type { ReviewOutput, ReviewCategory } from './types.js';
 
 const CATEGORY_PRIORITY: Record<ReviewCategory, number> = {
-  'block':           4,
-  'needs-changes':   3,
-  'fix-merge':       2,  // code looks fine but CI is failing
-  'needs-attention': 1,
+  'block':           5,
+  'needs-changes':   4,
+  'fix-merge':       3,  // code looks fine but CI is failing
+  'needs-attention': 2,
+  'merge-fix':       1,  // safe to merge, but worth a follow-up fix PR
   'auto-merge':      0,
 };
 
@@ -18,7 +19,7 @@ export function validateReviewOutput(raw: unknown): ReviewOutput {
   }
   const r = raw as Record<string, unknown>;
 
-  const validCategories = ['auto-merge', 'needs-attention', 'needs-changes', 'block'];
+  const validCategories = ['auto-merge', 'merge-fix', 'needs-attention', 'needs-changes', 'block'];
   if (!validCategories.includes(r.category as string)) {
     throw new Error(`Invalid category: ${r.category}`);
   }

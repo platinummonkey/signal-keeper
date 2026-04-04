@@ -53,9 +53,9 @@ Rules:
 export async function runClaudeFix(
   repoDir: string,
   review: Review,
-  opts: { model?: string; maxBudgetUsd?: number } = {},
+  opts: { model?: string; maxBudgetUsd?: number; onLog?: (line: string) => void } = {},
 ): Promise<FixRunnerResult> {
-  const { model = 'sonnet', maxBudgetUsd = 1.0 } = opts;
+  const { model = 'sonnet', maxBudgetUsd = 1.0, onLog } = opts;
 
   const changeList = review.suggested_changes
     .map((sc, i) => `${i + 1}. ${sc.file}: ${sc.description}\n   ${sc.suggestion}`)
@@ -79,32 +79,24 @@ After making all changes, respond with a brief summary of what you changed.`;
 
   logger.info({ repoDir, suggestedChanges: review.suggested_changes.length }, 'Running Claude autofix');
 
-  const result = await run(
-    'claude',
-    [
-      '--print',
-      '--output-format', 'json',
-      '--dangerously-skip-permissions',
-      '--tools', 'Bash,Edit,Read',
-      '--model', model,
-      '--max-budget-usd', String(maxBudgetUsd),
-      '--add-dir', repoDir,
-      prompt,
-    ],
-    { cwd: repoDir, timeout: 600_000 } as Parameters<typeof run>[2],
-  );
+  // Prompt via stdin + text output for live streaming (same pattern as CI fix)
+  const args = [
+    '--print',
+    '--output-format', 'text',
+    '--dangerously-skip-permissions',
+    '--tools', 'Bash,Edit,Read',
+    '--model', model,
+    '--max-budget-usd', String(maxBudgetUsd),
+    '--add-dir', repoDir,
+  ];
+
+  const result = await run('claude', args, {
+    cwd: repoDir, timeout: 600_000, input: prompt, onOutput: onLog,
+  } as Parameters<typeof run>[2]);
 
   if (result.exitCode !== 0) {
     throw new Error(`claude autofix exited ${result.exitCode}: ${result.stderr.slice(0, 300)}`);
   }
 
-  let costUsd: number | undefined;
-  try {
-    const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
-    if (typeof parsed.cost_usd === 'number') costUsd = parsed.cost_usd;
-  } catch {
-    // non-critical
-  }
-
-  return { changed: true, costUsd };
+  return { changed: true };
 }
