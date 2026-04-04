@@ -192,14 +192,16 @@ function openPR(id: number): void {
 
 function renderHeader(pr: PR): void {
   $('dh-title').textContent = pr.title;
+
+  // Category badge — standalone, prominent row below the title
+  $('dh-category').innerHTML = catBadge(pr.latest_review?.category);
+
   const extB  = pr.is_external     ? `<span class="mpill"><span class="badge b-ext">external</span></span>` : '';
   const apprB = pr.pending_approval ? `<span class="mpill"><span class="badge b-pend">⏸ workflows need approval</span></span>` : '';
   const ciB   = pr.external_stage === 'ci_pending'
     ? `<span class="mpill"><span class="badge b-attn">⟳ CI running</span></span>` : '';
-  // All values are escaped; anchor href is from our own DB (PR URL from GitHub API)
   $('detail-meta').innerHTML =
-    `<span class="mpill">${catBadge(pr.latest_review?.category)}</span>
-     ${extB}${apprB}${ciB}
+    `${extB}${apprB}${ciB}
      <span class="mpill">by <strong>${esc(pr.author)}</strong></span>
      <span class="mpill">base: <code>${esc(pr.base_branch)}</code></span>
      <span class="mpill">sha: <code>${esc(pr.head_sha.slice(0, 7))}</code></span>

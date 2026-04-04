@@ -102,34 +102,59 @@ export function initDb(dbPath: string): Database.Database {
     "SELECT sql FROM sqlite_master WHERE type='table' AND name='reviews'",
   ).get() as { sql: string } | undefined)?.sql ?? '';
 
-  if (!reviewsSql.includes('fix-merge') || !reviewsSql.includes('merge-fix')) {
-    // Disable FK checks during the migration: when SQLite renames a table it
-    // auto-updates any other table's FK references to the new name, so
-    // DROP TABLE reviews_pre_fixmerge would fail because autofix_jobs still
-    // references it. FK=OFF bypasses that check for the duration of the swap.
+  if (!reviewsSql.includes('merge-fix')) {
+    // Recreate reviews with the latest CHECK constraint.
+    // FK=OFF: SQLite auto-rewrites FK refs on RENAME, so autofix_jobs would
+    // point at the temp name and DROP would fail. FK=OFF bypasses that.
     db.pragma('foreign_keys = OFF');
     try {
-      db.exec(`
-        ALTER TABLE reviews RENAME TO reviews_pre_fixmerge;
-        CREATE TABLE reviews (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          pr_id INTEGER NOT NULL REFERENCES prs(id) ON DELETE CASCADE,
-          head_sha TEXT NOT NULL,
-          category TEXT NOT NULL CHECK(category IN ('auto-merge','merge-fix','needs-attention','needs-changes','fix-merge','block')),
-          summary TEXT NOT NULL,
-          notes TEXT NOT NULL DEFAULT '[]',
-          suggested_changes TEXT NOT NULL DEFAULT '[]',
-          confidence REAL NOT NULL DEFAULT 0,
-          cost_usd REAL,
-          model TEXT,
-          stage TEXT NOT NULL DEFAULT 'full',
-          session_id TEXT,
-          created_at TEXT NOT NULL DEFAULT (datetime('now')),
-          UNIQUE(pr_id, head_sha, stage)
-        );
-        INSERT INTO reviews SELECT * FROM reviews_pre_fixmerge;
-        DROP TABLE reviews_pre_fixmerge;
-      `);
+      // Drop any leftover temp table from a previous crashed migration run
+      db.exec('DROP TABLE IF EXISTS reviews_pre_fixmerge');
+
+      if (reviewsSql) {
+        // reviews exists — copy data through the temp table
+        db.exec(`
+          ALTER TABLE reviews RENAME TO reviews_pre_fixmerge;
+          CREATE TABLE reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pr_id INTEGER NOT NULL REFERENCES prs(id) ON DELETE CASCADE,
+            head_sha TEXT NOT NULL,
+            category TEXT NOT NULL CHECK(category IN ('auto-merge','merge-fix','needs-attention','needs-changes','fix-merge','block')),
+            summary TEXT NOT NULL,
+            notes TEXT NOT NULL DEFAULT '[]',
+            suggested_changes TEXT NOT NULL DEFAULT '[]',
+            confidence REAL NOT NULL DEFAULT 0,
+            cost_usd REAL,
+            model TEXT,
+            stage TEXT NOT NULL DEFAULT 'full',
+            session_id TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(pr_id, head_sha, stage)
+          );
+          INSERT INTO reviews SELECT * FROM reviews_pre_fixmerge;
+          DROP TABLE reviews_pre_fixmerge;
+        `);
+      } else {
+        // reviews was lost (crashed mid-migration) — recreate fresh
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pr_id INTEGER NOT NULL REFERENCES prs(id) ON DELETE CASCADE,
+            head_sha TEXT NOT NULL,
+            category TEXT NOT NULL CHECK(category IN ('auto-merge','merge-fix','needs-attention','needs-changes','fix-merge','block')),
+            summary TEXT NOT NULL,
+            notes TEXT NOT NULL DEFAULT '[]',
+            suggested_changes TEXT NOT NULL DEFAULT '[]',
+            confidence REAL NOT NULL DEFAULT 0,
+            cost_usd REAL,
+            model TEXT,
+            stage TEXT NOT NULL DEFAULT 'full',
+            session_id TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(pr_id, head_sha, stage)
+          );
+        `);
+      }
     } finally {
       db.pragma('foreign_keys = ON');
     }

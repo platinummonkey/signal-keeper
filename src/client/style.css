@@ -70,8 +70,8 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
 .empty-state { padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px; line-height:1.8; }
 
 /* Badges */
-.badge { display:inline-flex; align-items:center; padding:1px 7px;
-         border-radius:20px; font-size:11px; font-weight:500; }
+.badge { display:inline-flex; align-items:center; padding:2px 9px;
+         border-radius:20px; font-size:12px; font-weight:600; }
 .b-auto    { background:rgba(63,185,80,.15);  color:var(--green);  border:1px solid rgba(63,185,80,.3); }
 .b-attn    { background:rgba(210,153,34,.15); color:var(--yellow); border:1px solid rgba(210,153,34,.3); }
 .b-chng    { background:rgba(219,109,40,.15); color:var(--orange); border:1px solid rgba(219,109,40,.3); }
@@ -88,7 +88,8 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
                 color:var(--text-dim); font-size:14px; }
 #detail-content { flex:1; display:flex; flex-direction:column; overflow:hidden; }
 #detail-header { padding:14px 20px; border-bottom:1px solid var(--border); background:var(--bg2); flex-shrink:0; }
-#detail-header h2 { font-size:16px; font-weight:600; margin-bottom:6px; line-height:1.4; }
+#detail-header h2 { font-size:16px; font-weight:600; margin-bottom:8px; line-height:1.4; }
+#dh-category { margin-bottom:8px; }
 #detail-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .mpill { font-size:12px; color:var(--text-dim); }
 .mpill a { color:var(--accent); text-decoration:none; }
