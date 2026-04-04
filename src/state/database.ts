@@ -103,27 +103,36 @@ export function initDb(dbPath: string): Database.Database {
   ).get() as { sql: string } | undefined)?.sql ?? '';
 
   if (!reviewsSql.includes('fix-merge')) {
-    db.exec(`
-      ALTER TABLE reviews RENAME TO reviews_pre_fixmerge;
-      CREATE TABLE reviews (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        pr_id INTEGER NOT NULL REFERENCES prs(id) ON DELETE CASCADE,
-        head_sha TEXT NOT NULL,
-        category TEXT NOT NULL CHECK(category IN ('auto-merge','needs-attention','needs-changes','fix-merge','block')),
-        summary TEXT NOT NULL,
-        notes TEXT NOT NULL DEFAULT '[]',
-        suggested_changes TEXT NOT NULL DEFAULT '[]',
-        confidence REAL NOT NULL DEFAULT 0,
-        cost_usd REAL,
-        model TEXT,
-        stage TEXT NOT NULL DEFAULT 'full',
-        session_id TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        UNIQUE(pr_id, head_sha, stage)
-      );
-      INSERT INTO reviews SELECT * FROM reviews_pre_fixmerge;
-      DROP TABLE reviews_pre_fixmerge;
-    `);
+    // Disable FK checks during the migration: when SQLite renames a table it
+    // auto-updates any other table's FK references to the new name, so
+    // DROP TABLE reviews_pre_fixmerge would fail because autofix_jobs still
+    // references it. FK=OFF bypasses that check for the duration of the swap.
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.exec(`
+        ALTER TABLE reviews RENAME TO reviews_pre_fixmerge;
+        CREATE TABLE reviews (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pr_id INTEGER NOT NULL REFERENCES prs(id) ON DELETE CASCADE,
+          head_sha TEXT NOT NULL,
+          category TEXT NOT NULL CHECK(category IN ('auto-merge','needs-attention','needs-changes','fix-merge','block')),
+          summary TEXT NOT NULL,
+          notes TEXT NOT NULL DEFAULT '[]',
+          suggested_changes TEXT NOT NULL DEFAULT '[]',
+          confidence REAL NOT NULL DEFAULT 0,
+          cost_usd REAL,
+          model TEXT,
+          stage TEXT NOT NULL DEFAULT 'full',
+          session_id TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE(pr_id, head_sha, stage)
+        );
+        INSERT INTO reviews SELECT * FROM reviews_pre_fixmerge;
+        DROP TABLE reviews_pre_fixmerge;
+      `);
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
   }
 
   _db = db;
