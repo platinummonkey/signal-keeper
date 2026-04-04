@@ -1,4 +1,6 @@
-export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' | 'block';
+// fix-merge is not emitted by the AI — it is applied post-review when
+// the AI returns auto-merge but CI is currently failing.
+export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block';
 
 export interface SuggestedChange {
   file: string;

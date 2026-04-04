@@ -1,4 +1,4 @@
-export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' | 'block';
+export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block';
 
 export interface SuggestedChange {
   file: string;

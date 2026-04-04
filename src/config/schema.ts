@@ -18,7 +18,7 @@ const targetSchema = z.union([orgTargetSchema, repoTargetSchema]);
 const notificationsSchema = z.object({
   enabled: z.boolean().default(true),
   categories: z
-    .array(z.enum(['auto-merge', 'needs-attention', 'needs-changes', 'block']))
+    .array(z.enum(['auto-merge', 'needs-attention', 'needs-changes', 'fix-merge', 'block']))
     .default(['needs-attention', 'needs-changes', 'block']),
 });
 

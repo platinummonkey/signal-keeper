@@ -1,5 +1,5 @@
 import { fetchPR, fetchPRFiles, fetchPRDiff, getCIStatus, getWorkflowRunsForCommit } from '../github/client.js';
-import { upsertPR, insertReview, getPR, getLatestReview, type ReviewCategory, type ReviewStage } from '../state/models.js';
+import { upsertPR, insertReview, getPR, getLatestReview, updateReviewCategory, type ReviewCategory, type ReviewStage } from '../state/models.js';
 import { buildReviewPrompt } from './prompt-builder.js';
 import { buildInitialExternalPrompt, buildFinalExternalPrompt } from './external.js';
 import { runClaudeReview, generatePRComment } from './claude-subprocess.js';
@@ -81,7 +81,17 @@ export async function reviewPR(
   const resumeSessionId = existingReview?.session_id ?? undefined;
 
   const prompt = buildReviewPrompt(ghPR, customInstruction);
-  const review = await runReview(ghPR, prompt, 'full', dbPR.id, config, resumeSessionId);
+  let review = await runReview(ghPR, prompt, 'full', dbPR.id, config, resumeSessionId);
+
+  // If the AI says auto-merge but CI is currently failing, downgrade to fix-merge.
+  if (review.category === 'auto-merge') {
+    const ciStatus = await getCIStatus(owner, repo, ghPR.headSha).catch(() => 'no_runs' as const);
+    if (ciStatus === 'failed') {
+      updateReviewCategory(review.id, 'fix-merge');
+      review = { ...review, category: 'fix-merge' };
+      logger.info({ owner, repo, number }, 'Downgraded auto-merge → fix-merge (CI failing)');
+    }
+  }
 
   logger.info({ owner, repo, number, category: review.category, sessionId: review.session_id }, 'Review complete');
   return { review, isNewSha };

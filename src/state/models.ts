@@ -1,6 +1,6 @@
 import { getDb } from './database.js';
 
-export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' | 'block';
+export type ReviewCategory = 'auto-merge' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block';
 export type DecisionAction = 'merged' | 'commented' | 'closed' | 'dismissed' | 're-reviewed';
 export type AutofixStatus = 'pending' | 'cloning' | 'running' | 'pushing' | 'done' | 'failed';
 export type ExternalStage = 'awaiting_approval' | 'ci_pending' | 'complete';
@@ -175,6 +175,10 @@ export function upsertReview(data: {
     model: data.model ?? null,
   }) as Review & { notes: string; suggested_changes: string };
   return parseReviewRow(row);
+}
+
+export function updateReviewCategory(reviewId: number, category: ReviewCategory): void {
+  getDb().prepare('UPDATE reviews SET category = ? WHERE id = ?').run(category, reviewId);
 }
 
 function parseReviewRow(row: Review & { notes: string; suggested_changes: string }): Review {

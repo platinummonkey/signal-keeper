@@ -19,6 +19,7 @@ export function notify(opts: {
     'auto-merge': '✅',
     'needs-attention': '👀',
     'needs-changes': '⚠️',
+    'fix-merge': '🔧',
     'block': '🚫',
   };
 

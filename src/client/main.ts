@@ -57,10 +57,11 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal
 
 // ── Badges ────────────────────────────────────────────────────────
 const CATEGORY_MAP: Record<ReviewCategory, [string, string]> = {
-  'auto-merge':      ['b-auto',  '✓ auto-merge'],
-  'needs-attention': ['b-attn',  '👀 attention'],
-  'needs-changes':   ['b-chng',  '⚠ changes'],
-  'block':           ['b-block', '✗ block'],
+  'auto-merge':      ['b-auto',       '✓ auto-merge'],
+  'needs-attention': ['b-attn',       '👀 attention'],
+  'needs-changes':   ['b-chng',       '⚠ changes'],
+  'fix-merge':       ['b-fix-merge',  '🔧 fix CI'],
+  'block':           ['b-block',      '✗ block'],
 };
 function catBadge(cat?: ReviewCategory | null): string {
   if (!cat) return '<span class="badge b-gray">⏳ pending</span>';
@@ -381,6 +382,7 @@ async function loadDiff(pr: PR): Promise<void> {
 
 // ── Action bar ────────────────────────────────────────────────────
 function renderActions(pr: PR): void {
+  // fix-merge means CI is failing — block merge even though code looks fine
   const canMerge = pr.latest_review?.category === 'auto-merge';
   const needsCI  = !!(pr.pending_approval || pr.external_stage === 'awaiting_approval');
   $('action-bar').innerHTML = `

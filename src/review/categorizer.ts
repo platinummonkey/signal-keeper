@@ -1,10 +1,11 @@
 import type { ReviewOutput, ReviewCategory } from './types.js';
 
 const CATEGORY_PRIORITY: Record<ReviewCategory, number> = {
-  'block': 3,
-  'needs-changes': 2,
+  'block':           4,
+  'needs-changes':   3,
+  'fix-merge':       2,  // code looks fine but CI is failing
   'needs-attention': 1,
-  'auto-merge': 0,
+  'auto-merge':      0,
 };
 
 export function escalateCategory(current: ReviewCategory, candidate: ReviewCategory): ReviewCategory {

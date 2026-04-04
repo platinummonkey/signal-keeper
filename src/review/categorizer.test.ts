@@ -7,6 +7,9 @@ describe('escalateCategory', () => {
     expect(escalateCategory('block', 'auto-merge')).toBe('block');
     expect(escalateCategory('needs-attention', 'needs-changes')).toBe('needs-changes');
     expect(escalateCategory('needs-changes', 'needs-attention')).toBe('needs-changes');
+    expect(escalateCategory('auto-merge', 'fix-merge')).toBe('fix-merge');
+    expect(escalateCategory('fix-merge', 'needs-changes')).toBe('needs-changes');
+    expect(escalateCategory('fix-merge', 'needs-attention')).toBe('fix-merge');
   });
 
   it('returns the same when equal', () => {
