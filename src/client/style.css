@@ -38,8 +38,12 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
 /* Sidebar */
 #sidebar { width:360px; min-width:260px; display:flex; flex-direction:column;
            border-right:1px solid var(--border); background:var(--bg2); flex-shrink:0; }
-#filters { display:flex; gap:4px; padding:10px 12px; flex-wrap:wrap;
+#filters { display:flex; gap:4px; padding:8px 12px; flex-wrap:wrap;
            border-bottom:1px solid var(--border); }
+#pr-search { width:100%; background:var(--bg3); border:1px solid var(--border); color:var(--text);
+             padding:6px 10px; font-size:12px; outline:none; flex-shrink:0; }
+#pr-search:focus { border-bottom-color:var(--accent); }
+#pr-search::placeholder { color:var(--text-dim); }
 .filter-btn { background:none; border:1px solid var(--border); color:var(--text-dim);
               border-radius:20px; padding:3px 10px; font-size:12px; cursor:pointer; transition:all .15s; }
 .filter-btn:hover { border-color:var(--accent); color:var(--text); }
@@ -52,15 +56,17 @@ body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-s
 #pr-list { flex:1; overflow-y:auto; }
 #pr-list::-webkit-scrollbar { width:5px; }
 #pr-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
-.pr-item { padding:11px 14px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s; }
+.pr-item { padding:10px 14px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s; }
 .pr-item:hover { background:var(--bg3); }
 .pr-item.selected { background:var(--bg3); border-left:3px solid var(--accent); padding-left:11px; }
-.pr-item-top { display:flex; align-items:center; gap:5px; margin-bottom:4px; }
-.pr-repo   { font-size:11px; color:var(--text-dim); font-family:var(--font-mono); }
-.pr-num    { font-size:11px; color:var(--accent); font-family:var(--font-mono); }
-.pr-badges { margin-left:auto; display:flex; gap:3px; flex-shrink:0; }
-.pr-title  { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pr-meta   { font-size:11px; color:var(--text-dim); margin-top:2px; }
+.pr-item-top { display:flex; align-items:center; gap:5px; margin-bottom:3px; }
+.pr-repo   { font-size:11px; color:var(--text-dim); font-family:var(--font-mono); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pr-num    { font-size:11px; color:var(--accent); font-family:var(--font-mono); flex-shrink:0; }
+.pr-flags  { margin-left:auto; display:flex; gap:3px; flex-shrink:0; }
+.pr-title  { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:5px; }
+.pr-bottom { display:flex; align-items:center; gap:6px; }
+.pr-cat    { flex-shrink:0; }
+.pr-meta   { font-size:11px; color:var(--text-dim); margin-left:auto; }
 .empty-state { padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px; line-height:1.8; }
 
 /* Badges */

@@ -75,6 +75,7 @@ let prs: PR[] = [];
 let selId: number | null = null;
 let curFilter: string = 'all';
 let curRepo: string = 'all';
+let curSearch: string = '';
 let diffLoaded = false;
 let ciLoaded = false;
 let ciPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -117,9 +118,24 @@ function updateRepoDropdown(): void {
 }
 
 function filteredPRs(): PR[] {
+  const q = curSearch.toLowerCase().trim();
   return prs
     .filter(p => curFilter === 'all' || p.latest_review?.category === curFilter)
-    .filter(p => curRepo === 'all' || `${p.owner}/${p.repo}` === curRepo);
+    .filter(p => curRepo === 'all' || `${p.owner}/${p.repo}` === curRepo)
+    .filter(p => {
+      if (!q) return true;
+      const cat = p.latest_review?.category ?? '';
+      const catLabel = CATEGORY_MAP[cat as ReviewCategory]?.[1] ?? cat;
+      return (
+        p.title.toLowerCase().includes(q) ||
+        p.author.toLowerCase().includes(q) ||
+        `${p.owner}/${p.repo}`.toLowerCase().includes(q) ||
+        `#${p.number}`.includes(q) ||
+        cat.includes(q) ||
+        catLabel.toLowerCase().includes(q) ||
+        (p.latest_review?.summary ?? '').toLowerCase().includes(q)
+      );
+    });
 }
 
 function renderList(): void {
@@ -133,16 +149,19 @@ function renderList(): void {
   }
   // All user content is escaped via esc() before insertion
   el.innerHTML = list.map(pr => {
-    const ext  = pr.is_external     ? '<span class="badge b-ext">ext</span>' : '';
-    const appr = pr.pending_approval ? '<span class="badge b-pend">⏸</span>' : '';
+    const ext  = pr.is_external      ? '<span class="badge b-ext">ext</span>' : '';
+    const appr = pr.pending_approval  ? '<span class="badge b-pend">⏸</span>' : '';
     return `<div class="pr-item${pr.id === selId ? ' selected' : ''}" data-id="${pr.id}">
       <div class="pr-item-top">
         <span class="pr-repo">${esc(pr.owner)}/${esc(pr.repo)}</span>
         <span class="pr-num">#${pr.number}</span>
-        <div class="pr-badges">${ext}${appr}${catBadge(pr.latest_review?.category)}</div>
+        <div class="pr-flags">${ext}${appr}</div>
       </div>
       <div class="pr-title">${esc(pr.title)}</div>
-      <div class="pr-meta">by ${esc(pr.author)} · ${ago(pr.updated_at)}</div>
+      <div class="pr-bottom">
+        <span class="pr-cat">${catBadge(pr.latest_review?.category)}</span>
+        <span class="pr-meta">by ${esc(pr.author)} · ${ago(pr.updated_at)}</span>
+      </div>
     </div>`;
   }).join('');
 
@@ -632,6 +651,19 @@ $('filters').addEventListener('click', (e) => {
 $<HTMLSelectElement>('repo-select').addEventListener('change', (e) => {
   curRepo = (e.target as HTMLSelectElement).value;
   renderList();
+});
+
+$<HTMLInputElement>('pr-search').addEventListener('input', (e) => {
+  curSearch = (e.target as HTMLInputElement).value;
+  renderList();
+});
+// Clear search when Escape pressed inside the box
+$<HTMLInputElement>('pr-search').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    (e.target as HTMLInputElement).value = '';
+    curSearch = '';
+    renderList();
+  }
 });
 
 // ── SSE ───────────────────────────────────────────────────────────
