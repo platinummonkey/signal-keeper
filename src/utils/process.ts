@@ -13,10 +13,7 @@ export function run(
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const { input, onOutput, ...spawnOpts } = opts;
-    // When no input is provided, redirect stdin from /dev/null so subprocesses
-    // (e.g. claude CLI) don't wait for stdin and emit "no stdin data" warnings.
-    const stdinMode = input ? 'pipe' : 'ignore';
-    const child = spawn(cmd, args, { ...spawnOpts, stdio: [stdinMode, 'pipe', 'pipe'] });
+    const child = spawn(cmd, args, { ...spawnOpts, stdio: 'pipe' });
 
     let stdout = '';
     let stderr = '';
@@ -33,6 +30,11 @@ export function run(
     if (input && child.stdin) {
       child.stdin.write(input);
       child.stdin.end();
+    } else {
+      // Close stdin immediately — sends EOF without the 3s "no stdin data" wait,
+      // while still leaving the pipe open long enough for the process to find
+      // its positional arguments before reading stdin.
+      child.stdin?.end();
     }
 
     child.on('error', reject);
