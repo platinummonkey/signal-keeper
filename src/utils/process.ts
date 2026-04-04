@@ -9,17 +9,23 @@ export interface RunResult {
 export function run(
   cmd: string,
   args: string[],
-  opts: SpawnOptions & { input?: string } = {},
+  opts: SpawnOptions & { input?: string; onOutput?: (line: string) => void } = {},
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
-    const { input, ...spawnOpts } = opts;
+    const { input, onOutput, ...spawnOpts } = opts;
     const child = spawn(cmd, args, { ...spawnOpts, stdio: 'pipe' });
 
     let stdout = '';
     let stderr = '';
 
-    child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
-    child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+    const makeHandler = (buf: 'stdout' | 'stderr', prefix: string) => (d: Buffer) => {
+      const chunk = d.toString();
+      if (buf === 'stdout') stdout += chunk; else stderr += chunk;
+      if (onOutput) chunk.split('\n').forEach(line => { if (line) onOutput(`${prefix}${line}`); });
+    };
+
+    child.stdout?.on('data', makeHandler('stdout', ''));
+    child.stderr?.on('data', makeHandler('stderr', '[stderr] '));
 
     if (input && child.stdin) {
       child.stdin.write(input);

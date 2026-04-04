@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import type { Request, Response } from 'express';
 import { createApiRouter } from './api.js';
 import { eventBus } from './event-bus.js';
-import { notBuiltPage } from './ui.js';
+import { notBuiltPage, fixLogPage } from './ui.js';
 import { getDaemonState } from '../daemon.js';
 import { logger } from '../utils/logger.js';
 import type { ConfigOutput } from '../config/schema.js';
@@ -26,6 +26,12 @@ export async function startServer(config: ConfigOutput, devMode = false): Promis
   });
 
   app.use(express.json());
+
+  // Fix log viewer — must be before the SPA fallback
+  app.get('/fix-log', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(fixLogPage());
+  });
 
   // Daemon status
   app.get('/api/status', (_req: Request, res: Response) => {

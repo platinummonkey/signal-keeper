@@ -8,6 +8,7 @@ import { reviewPR, generateCommentFromReview } from '../review/engine.js';
 import { fetchPRDiff, fetchPRFiles, getCIStatus, getWorkflowRunsForCommit, getWorkflowRunJobs } from '../github/client.js';
 import { approvePendingWorkflows } from '../daemon.js';
 import { runAutofix, runCIJobFix } from '../autofix/index.js';
+import { fixSessions } from './fix-sessions.js';
 import { logger } from '../utils/logger.js';
 import type { ConfigOutput } from '../config/schema.js';
 
@@ -149,18 +150,59 @@ export function createApiRouter(config: ConfigOutput): Router {
     }
   });
 
-  // Fix a specific failing CI job
+  // Fix a specific failing CI job — returns a session ID for live log streaming
   router.post('/prs/:id/fix-ci-job', async (req: Request, res: Response) => {
     try {
       const pr = requirePR(req, res); if (!pr) return;
       const jobName: string = req.body?.jobName;
       if (!jobName?.trim()) return res.status(400).json({ error: 'jobName is required' });
-      runCIJobFix(pr.id, jobName, config)
-        .catch((err) => logger.error({ err, prId: pr.id, jobName }, 'CI job fix failed'));
-      res.json({ ok: true, message: `CI fix started for job: ${jobName}` });
+
+      const sessionId = fixSessions.create({
+        prId: pr.id, owner: pr.owner, repo: pr.repo, prNumber: pr.number, jobName,
+      });
+
+      runCIJobFix(pr.id, jobName, config, (line) => fixSessions.addLog(sessionId, line))
+        .then((result) => fixSessions.setDone(sessionId, result.followUpPrUrl))
+        .catch((err) => {
+          logger.error({ err, prId: pr.id, jobName }, 'CI job fix failed');
+          fixSessions.setFailed(sessionId, (err as Error).message);
+        });
+
+      res.json({ ok: true, sessionId, logUrl: `/fix-log?session=${sessionId}` });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
+  });
+
+  // SSE stream of a fix session's logs
+  router.get('/fix/:id/logs', (req: Request, res: Response) => {
+    const session = fixSessions.get(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const send = (line: string) => res.write(`data: ${JSON.stringify(line)}\n\n`);
+
+    // Replay buffered logs first
+    session.logs.forEach(send);
+    if (session.status !== 'running') { send('[done]'); res.end(); return; }
+
+    const unsub = fixSessions.subscribe(req.params.id, (line) => {
+      send(line);
+      if (line === '[done]') res.end();
+    });
+    req.on('close', unsub);
+  });
+
+  // Fix session status + full log (for page refresh)
+  router.get('/fix/:id', (req: Request, res: Response) => {
+    const session = fixSessions.get(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json(session);
   });
 
   // Autofix

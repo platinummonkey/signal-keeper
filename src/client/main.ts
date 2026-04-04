@@ -346,8 +346,9 @@ function bindCIFixButtons(pr: PR): void {
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>';
       try {
-        await api.fixCIJob(pr.id, jobName);
-        toast(`CI fix started for "${jobName}" — follow-up PR will be created`, 'info');
+        const { logUrl } = await api.fixCIJob(pr.id, jobName);
+        window.open(logUrl, '_blank', 'noopener');
+        toast(`CI fix started for "${jobName}" — watching live in new tab`, 'info');
       } catch (e) {
         toast(`CI fix failed: ${(e as Error).message}`, 'error');
       } finally {

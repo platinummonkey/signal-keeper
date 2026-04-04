@@ -25,5 +25,5 @@ export const api = {
   approveCI:       (id: number)                     => request<{ ok: boolean }>('POST', `/prs/${id}/approve-ci`),
   generateComment: (id: number, instruction: string) => request<{ ok: boolean; body: string }>('POST', `/prs/${id}/generate-comment`, { instruction }),
   autofix:         (id: number)                     => request<{ ok: boolean }>('POST', `/prs/${id}/autofix`),
-  fixCIJob:        (id: number, jobName: string)    => request<{ ok: boolean; message: string }>('POST', `/prs/${id}/fix-ci-job`, { jobName }),
+  fixCIJob:        (id: number, jobName: string)    => request<{ ok: boolean; sessionId: string; logUrl: string }>('POST', `/prs/${id}/fix-ci-job`, { jobName }),
 };

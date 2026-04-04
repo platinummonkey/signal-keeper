@@ -16,6 +16,7 @@ export async function runCIJobFix(
   prId: number,
   jobName: string,
   config: ConfigOutput,
+  onLog?: (line: string) => void,
 ): Promise<AutofixResult> {
   const { listOpenPRs } = await import('../state/models.js');
   const prRow = listOpenPRs().find((p) => p.id === prId);
@@ -41,6 +42,7 @@ export async function runCIJobFix(
       model: config.reviewModel,
       maxBudgetUsd: config.maxReviewCostUsd * 2,
       resumeSessionId: sessionId,
+      onLog,
     });
 
     updateAutofixJob(job.id, { status: 'pushing' });
