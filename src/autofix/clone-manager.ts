@@ -28,6 +28,32 @@ export async function ensureRepo(workDir: string, owner: string, repo: string): 
   return repoDir;
 }
 
+/**
+ * Fetch and checkout the exact HEAD commit of a PR.
+ * Uses pull/<N>/head which works for both same-repo and fork PRs.
+ * Leaves the repo in detached-HEAD state at the PR's tip commit.
+ */
+export async function checkoutPRHead(
+  repoDir: string,
+  prNumber: number,
+  headSha: string,
+): Promise<void> {
+  // fetch pull/<N>/head — resolves even for fork PRs
+  const fetch = await run('git', ['-C', repoDir, 'fetch', 'origin', `pull/${prNumber}/head`]);
+  if (fetch.exitCode !== 0) {
+    // Fallback: fetch the SHA directly (works when origin owns the branch)
+    const fetchSha = await run('git', ['-C', repoDir, 'fetch', 'origin', headSha]);
+    if (fetchSha.exitCode !== 0) {
+      throw new Error(`Could not fetch PR #${prNumber} head: ${fetch.stderr.slice(0, 200)}`);
+    }
+  }
+  const checkout = await run('git', ['-C', repoDir, 'checkout', headSha]);
+  if (checkout.exitCode !== 0) {
+    throw new Error(`git checkout ${headSha} failed: ${checkout.stderr.slice(0, 200)}`);
+  }
+  logger.debug({ repoDir, prNumber, headSha }, 'Checked out PR head');
+}
+
 export async function checkoutBranch(repoDir: string, baseBranch: string): Promise<void> {
   // Reset any local changes and checkout the base branch
   const reset = await run('git', ['-C', repoDir, 'checkout', baseBranch]);

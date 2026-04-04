@@ -4,6 +4,7 @@ import { pollAllTargets } from './github/poller.js';
 import {
   upsertPR, markPRClosed, listOpenPRs, getLatestReview,
   setExternalStage, setPendingApproval, listExternalPRsAwaitingCi, getLatestReviewByStage,
+  updateReviewCategory,
 } from './state/models.js';
 import { reviewPR, reviewExternalInitial, reviewExternalFinal } from './review/engine.js';
 import { notifyReviewComplete } from './notifications/notifier.js';
@@ -118,6 +119,32 @@ async function checkExternalCIPending(config: ConfigOutput): Promise<void> {
   }
 }
 
+async function checkAutoMergeCIStatus(): Promise<void> {
+  const openPRs = listOpenPRs();
+  await Promise.all(openPRs.map(async (pr) => {
+    const review = getLatestReview(pr.id);
+    if (!review || review.category !== 'auto-merge') return;
+
+    try {
+      const ciStatus = await getCIStatus(pr.owner, pr.repo, pr.head_sha);
+      if (ciStatus === 'failed') {
+        updateReviewCategory(review.id, 'fix-merge');
+        logger.info({ owner: pr.owner, repo: pr.repo, number: pr.number }, 'Downgraded auto-merge → fix-merge (CI failing)');
+        eventBus.emit('app', {
+          type: 'review:complete',
+          prId: pr.id,
+          owner: pr.owner,
+          repo: pr.repo,
+          number: pr.number,
+          category: 'fix-merge',
+        });
+      }
+    } catch (err) {
+      logger.debug({ owner: pr.owner, repo: pr.repo, number: pr.number, err }, 'CI status check skipped');
+    }
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Main poll cycle
 // ---------------------------------------------------------------------------
@@ -164,6 +191,10 @@ async function pollCycle(): Promise<void> {
 
     // Check CI completion for external PRs already approved
     await checkExternalCIPending(_config);
+
+    // Re-evaluate auto-merge PRs: downgrade to fix-merge if CI is now failing.
+    // This catches PRs reviewed before CI failed and CI regressions between reviews.
+    await checkAutoMergeCIStatus();
 
     // Queue reviews for PRs that need them
     const prsNeedingReview = listOpenPRs().filter((pr) => {
