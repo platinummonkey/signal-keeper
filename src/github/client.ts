@@ -230,6 +230,19 @@ export async function approveWorkflowRun(owner: string, repo: string, runId: num
   logger.info({ owner, repo, runId }, 'Approved workflow run');
 }
 
+/** Returns the PR's head branch name and whether it comes from a fork. */
+export async function getPRHeadInfo(
+  owner: string,
+  repo: string,
+  number: number,
+): Promise<{ headBranch: string; isFork: boolean }> {
+  const { data } = await getOctokit().pulls.get({ owner, repo, pull_number: number });
+  return {
+    headBranch: data.head.ref,
+    isFork: data.head.repo?.full_name !== `${owner}/${repo}`,
+  };
+}
+
 export async function getWorkflowRunJobs(
   owner: string,
   repo: string,

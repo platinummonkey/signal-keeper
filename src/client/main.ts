@@ -90,7 +90,9 @@ interface FixTab {
 type TabId = 'review' | 'description' | 'ci' | 'diff' | string; // string = fix session ID
 let activeTab: TabId = 'review';
 let lastCIData: { status: string; runs: import('./types.ts').WorkflowRun[] } | null = null;
-let fixTabs: FixTab[] = [];  // fix sessions for the current PR
+// Fix tabs persisted by PR id so navigating away and back preserves them
+const fixTabsByPr = new Map<number, FixTab[]>();
+let fixTabs: FixTab[] = [];  // reference to the current PR's fix tabs
 
 // ── PR List ───────────────────────────────────────────────────────
 async function fetchPRs(): Promise<void> {
@@ -155,8 +157,9 @@ function openPR(id: number): void {
   lastCIData = null;
   activeTab = 'review';
   stopCIPoll();
-  fixTabs.forEach(ft => ft.es?.close());
-  fixTabs = [];
+  // Restore (or create) fix tabs for this PR — EventSources stay alive across navigation
+  if (!fixTabsByPr.has(id)) fixTabsByPr.set(id, []);
+  fixTabs = fixTabsByPr.get(id)!;
   renderList();
   const pr = prs.find(p => p.id === id);
   if (!pr) return;
@@ -268,17 +271,12 @@ function fixTabHTML(ft: FixTab): string {
 }
 
 function formatFixLine(raw: string): { cls: string; text: string } | null {
-  // Try to parse as the final Claude JSON blob
-  if (raw.trimStart().startsWith('{')) {
-    try {
-      const j = JSON.parse(raw) as Record<string, unknown>;
-      if (typeof j.result === 'string') {
-        const cost = typeof j.total_cost_usd === 'number' ? ` ($${j.total_cost_usd.toFixed(4)})` : '';
-        return { cls: 'fl-out', text: `\n${j.result}${cost}` };
-      }
-    } catch { /* not json */ }
+  if (!raw.trim()) return null;
+  if (raw.startsWith('[stderr]')) {
+    const msg = raw.slice(8).trim();
+    if (!msg) return null;
+    return { cls: 'fl-err', text: msg };
   }
-  if (raw.startsWith('[stderr]')) return { cls: 'fl-err', text: raw.slice(8).trim() };
   if (raw.startsWith('✓')) return { cls: 'fl-done', text: raw };
   if (raw.startsWith('✗')) return { cls: 'fl-fail', text: raw };
   return { cls: 'fl-out', text: raw };
@@ -590,6 +588,7 @@ async function handleAction(e: Event, pr: PR, act: string): Promise<void> {
 function clearDetail(): void {
   selId = null;
   stopCIPoll();
+  fixTabs = [];  // clear local reference; sessions live on in fixTabsByPr
   $('detail-empty').style.display = '';
   $('detail-content').style.display = 'none';
 }

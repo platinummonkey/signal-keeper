@@ -27,11 +27,11 @@ Rules:
 - Use Read to understand the code, Edit to fix it, Bash to run checks if needed
 - After fixing, briefly summarise what you changed and why`;
 
-  // Pass the prompt via stdin — explicit "through stdin" mode avoids any
-  // positional-argument parsing ambiguity with --add-dir consuming extra args.
+  // Pass the prompt via stdin and use text output so the response streams
+  // incrementally — json format only emits one blob at the very end.
   const args = [
     '--print',
-    '--output-format', 'json',
+    '--output-format', 'text',
     '--dangerously-skip-permissions',
     '--tools', 'Bash,Edit,Read',
     '--model', model,
@@ -47,13 +47,7 @@ Rules:
     throw new Error(`claude CI fix exited ${result.exitCode}: ${result.stderr.slice(0, 300)}`);
   }
 
-  let costUsd: number | undefined;
-  try {
-    const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
-    if (typeof parsed.total_cost_usd === 'number') costUsd = parsed.total_cost_usd;
-  } catch { /* non-critical */ }
-
-  return { changed: true, costUsd };
+  return { changed: true };
 }
 
 export async function runClaudeFix(

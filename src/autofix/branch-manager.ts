@@ -13,6 +13,19 @@ export async function createBranch(repoDir: string, branchName: string): Promise
   logger.debug({ repoDir, branchName }, 'Created autofix branch');
 }
 
+/** Stage and commit all changes; returns false if there was nothing to commit. */
+export async function commitChanges(repoDir: string, message: string): Promise<boolean> {
+  const add = await run('git', ['-C', repoDir, 'add', '-A']);
+  if (add.exitCode !== 0) throw new Error(`git add failed: ${add.stderr.slice(0, 200)}`);
+
+  const status = await run('git', ['-C', repoDir, 'status', '--porcelain']);
+  if (status.stdout.trim() === '') return false;
+
+  const commit = await run('git', ['-C', repoDir, 'commit', '-m', message]);
+  if (commit.exitCode !== 0) throw new Error(`git commit failed: ${commit.stderr.slice(0, 200)}`);
+  return true;
+}
+
 export async function commitAndPush(
   repoDir: string,
   branchName: string,
