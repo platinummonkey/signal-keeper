@@ -31,6 +31,8 @@ export const configSchema = z.object({
   }).default(() => ({ tokenCommand: 'gh auth token' })),
   pollIntervalSeconds: z.number().int().gt(0).default(300),
   targets: z.array(targetSchema).default([]),
+  // Zod v4 requires the outer .default() factory to return the fully-resolved
+  // output type; inner field defaults do not auto-apply here.
   notifications: notificationsSchema.default(() => ({
     enabled: true,
     categories: ['needs-attention', 'needs-changes', 'block'] as NotificationCategory[],
