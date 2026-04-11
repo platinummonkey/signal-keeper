@@ -15,10 +15,13 @@ const repoTargetSchema = z.object({
 
 const targetSchema = z.union([orgTargetSchema, repoTargetSchema]);
 
+const notificationCategorySchema = z.enum(['auto-merge', 'needs-attention', 'needs-changes', 'fix-merge', 'block']);
+type NotificationCategory = z.infer<typeof notificationCategorySchema>;
+
 const notificationsSchema = z.object({
   enabled: z.boolean().default(true),
   categories: z
-    .array(z.enum(['auto-merge', 'needs-attention', 'needs-changes', 'fix-merge', 'block']))
+    .array(notificationCategorySchema)
     .default(['needs-attention', 'needs-changes', 'block']),
 });
 
@@ -30,7 +33,7 @@ export const configSchema = z.object({
   targets: z.array(targetSchema).default([]),
   notifications: notificationsSchema.default(() => ({
     enabled: true,
-    categories: ['needs-attention', 'needs-changes', 'block'] as ('auto-merge' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block')[],
+    categories: ['needs-attention', 'needs-changes', 'block'] as NotificationCategory[],
   })),
   maxConcurrentReviews: z.number().int().gt(0).default(3),
   maxReviewCostUsd: z.number().gt(0).default(0.5),
