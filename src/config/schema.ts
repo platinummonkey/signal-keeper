@@ -25,16 +25,19 @@ const notificationsSchema = z.object({
 export const configSchema = z.object({
   github: z.object({
     tokenCommand: z.string().default('gh auth token'),
-  }).default({}),
-  pollIntervalSeconds: z.number().int().positive().default(300),
+  }).default(() => ({ tokenCommand: 'gh auth token' })),
+  pollIntervalSeconds: z.number().int().gt(0).default(300),
   targets: z.array(targetSchema).default([]),
-  notifications: notificationsSchema.default({}),
-  maxConcurrentReviews: z.number().int().positive().default(3),
-  maxReviewCostUsd: z.number().positive().default(0.5),
+  notifications: notificationsSchema.default(() => ({
+    enabled: true,
+    categories: ['needs-attention', 'needs-changes', 'block'] as ('auto-merge' | 'needs-attention' | 'needs-changes' | 'fix-merge' | 'block')[],
+  })),
+  maxConcurrentReviews: z.number().int().gt(0).default(3),
+  maxReviewCostUsd: z.number().gt(0).default(0.5),
   reviewModel: z.string().default('sonnet'),
   workDir: z.string().default('~/.signal-keeper/repos'),
   trustedOrgs: z.array(z.string()).default([]),
-  maxFixCostUsd: z.number().positive().default(10.0),
+  maxFixCostUsd: z.number().gt(0).default(10.0),
   port: z.number().int().min(1024).max(65535).default(7777),
 });
 
