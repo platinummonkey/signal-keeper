@@ -63,7 +63,7 @@ export function createApiRouter(config: ConfigOutput): Router {
   // Single PR detail
   router.get('/prs/:id', (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id, 10);
+      const id = parseInt(req.params.id as string, 10);
       const prs = listOpenPRs() as ReturnType<typeof listOpenPRs>;
       const pr = prs.find((p) => p.id === id);
       if (!pr) return res.status(404).json({ error: 'PR not found' });
@@ -176,7 +176,7 @@ export function createApiRouter(config: ConfigOutput): Router {
 
   // SSE stream of a fix session's logs
   router.get('/fix/:id/logs', (req: Request, res: Response) => {
-    const session = fixSessions.get(req.params.id);
+    const session = fixSessions.get(req.params.id as string);
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -191,7 +191,7 @@ export function createApiRouter(config: ConfigOutput): Router {
     session.logs.forEach(send);
     if (session.status !== 'running') { send('[done]'); res.end(); return; }
 
-    const unsub = fixSessions.subscribe(req.params.id, (line) => {
+    const unsub = fixSessions.subscribe(req.params.id as string, (line) => {
       send(line);
       if (line === '[done]') res.end();
     });
@@ -200,7 +200,7 @@ export function createApiRouter(config: ConfigOutput): Router {
 
   // Fix session status + full log (for page refresh)
   router.get('/fix/:id', (req: Request, res: Response) => {
-    const session = fixSessions.get(req.params.id);
+    const session = fixSessions.get(req.params.id as string);
     if (!session) return res.status(404).json({ error: 'Session not found' });
     res.json(session);
   });
@@ -249,7 +249,7 @@ export function createApiRouter(config: ConfigOutput): Router {
 }
 
 function requirePR(req: Request, res: Response) {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   const prs = listOpenPRs();
   const pr = prs.find((p) => p.id === id);
   if (!pr) { res.status(404).json({ error: 'PR not found' }); return null; }

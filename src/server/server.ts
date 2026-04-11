@@ -83,9 +83,9 @@ export async function startServer(config: ConfigOutput, devMode = false): Promis
     // Production: serve built client from dist/client/
     if (existsSync(CLIENT_DIST)) {
       app.use(express.static(CLIENT_DIST));
-      app.get('*', (_req, res) => res.sendFile(join(CLIENT_DIST, 'index.html')));
+      app.get('/{*path}', (_req, res) => res.sendFile(join(CLIENT_DIST, 'index.html')));
     } else {
-      app.get('*', (_req, res) => {
+      app.get('/{*path}', (_req, res) => {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(notBuiltPage(config.port));
       });
