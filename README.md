@@ -31,7 +31,7 @@ npm link          # makes `signal-keeper` available in PATH
 ```
 
 **Requirements:**
-- Node.js 20+
+- Node.js 22.14+
 - [Claude Code CLI](https://claude.ai/code) (`claude` in PATH, authenticated)
 - [GitHub CLI](https://cli.github.com/) (`gh auth login` done, or a custom token command)
 
